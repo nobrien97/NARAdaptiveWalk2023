@@ -5,30 +5,30 @@ library(boot)
 library(moments)
 
 # Number of pops adapted
-(d_qg %>% group_by(modelindex) %>%
+print(d_qg %>% group_by(modelindex) %>%
   filter(gen == 49500) %>%
   summarise(n = n(),
             pAdapted = mean(isAdapted),
             CIAdapted = CI(isAdapted)))
 
 # Fisher test - number of pops adapted
-(fisher.test(table((d_qg %>% distinct(seed, modelindex, .keep_all = T))$modelindex, 
+print(fisher.test(table((d_qg %>% distinct(seed, modelindex, .keep_all = T))$modelindex, 
                   (d_qg %>% distinct(seed, modelindex, .keep_all = T))$isAdapted)))
 
 
 # Fisher test - number of steps taken in walk
-(fisher.test(table((d_fix_ranked_combined %>% filter(rank > 0))$model, 
+print(fisher.test(table((d_fix_ranked_combined %>% filter(rank > 0))$model, 
       (d_fix_ranked_combined %>% filter(rank > 0))$rank)))
 
 # mean number of steps
-(d_fix_ranked_combined %>% 
+print(d_fix_ranked_combined %>% 
   group_by(model, seed) %>%
   summarise(nSteps = max(rank)) %>%
   ungroup() %>%
   summarise(meanStepsAcrossBothModels = mean(nSteps),
             CISteps = CI(nSteps)))
 
-(d_fix_ranked_combined %>% 
+print(d_fix_ranked_combined %>% 
   group_by(model, seed) %>%
   summarise(nSteps = max(rank)) %>%
   group_by(nSteps) %>%
@@ -41,11 +41,10 @@ library(moments)
 mdl <- lm(gen ~ model, data = d_fix_ranked_combined %>% 
             filter(rank > 1, phenomean < 1.9 | phenomean > 2.1) %>%
       mutate(gen = gen - 50000))
-plot(mdl)
-(summary(mdl))
+print(summary(mdl))
 
 # 95% CI
-(sqrt(diag(vcov(mdl))) * qnorm(0.975))
+print(sqrt(diag(vcov(mdl))) * qnorm(0.975))
 
 # fit gamma distribution to fixed effects
 fit_nar <- fitdist((d_fix_ranked %>% filter(rank > 0, s > 0))$s, 
@@ -54,12 +53,10 @@ fit_add <- fitdist((d_fix_ranked_add %>% filter(rank > 0, s > 0))$s,
                    distr = "gamma", method = "mle")
 
 # 95% CI
-(fit_nar$sd * qnorm(0.975))
-(fit_add$sd * qnorm(0.975))
-(summary(fit_nar))
-(summary(fit_add))
-plot(fit_nar)
-plot(fit_add)
+print(fit_nar$sd * qnorm(0.975))
+print(fit_add$sd * qnorm(0.975))
+print(summary(fit_nar))
+print(summary(fit_add))
 
 # Find modes of mutation screen distribution
 d <- density(mutExp$s)
@@ -70,27 +67,27 @@ modes <- function(d){
 }
 
 mutExp_modes <- modes(d)
-(mutExp_modes[order(mutExp_modes$y, decreasing = T),])
+print(mutExp_modes[order(mutExp_modes$y, decreasing = T),])
 
 d_add <- density(mutExp_add$s)
 mutExp_add_modes <- modes(d_add)
-(mutExp_add_modes[order(mutExp_add_modes$y, decreasing = T),])
+print(mutExp_add_modes[order(mutExp_add_modes$y, decreasing = T),])
 
 # Heterozygosity: difference between models
 ## Average over all generations
-(d_het %>% pivot_longer(cols = c(Ho_l1, Ho_l2), names_to = "locus", values_to = "Ho") %>%
+print(d_het %>% pivot_longer(cols = c(Ho_l1, Ho_l2), names_to = "locus", values_to = "Ho") %>%
   group_by(modelindex) %>%
   summarise(meanHo = mean(Ho),
             CIHo = CI(Ho)))
 
 # Maximum average
-(d_Ho_sum %>% 
+print(d_Ho_sum %>% 
   group_by(model) %>%
   filter(meanHo == max(meanHo)))
 
 # Amount of variation driven by segregating variance
 # ratio of fixed/seg effects
-(d_fix_ranked_combined %>% filter(rank > 0) %>%
+print(d_fix_ranked_combined %>% filter(rank > 0) %>%
   mutate(rat = AA_pheno/phenomean) %>%
   group_by(model) %>%
   summarise(meanRatioFixedToSegregating = mean(rat),
@@ -99,9 +96,10 @@ mutExp_add_modes <- modes(d_add)
 # Fit generalised Pareto
 mutExp_add_ben <- mutExp_add %>% filter(s > 0)
 mutExp_ben <- mutExp %>% filter(s > 0)
+
+
 # This code from Lebeuf-Taylor et al. 2019
 ## Testing the shape of the distribution of beneficial mutation ####
-## Use both the synonymous and non-synonymous together because their beneficial distributions are not significantly different.
 
 # sample fitness effects and return a sorted vector
 sampleFitnessEffects <- function(s, n) {
@@ -163,7 +161,6 @@ LL.Exp <- function(par, d){ # equations from Beisel et al 2007
 
 #1# Optimization ####
 require(GenSA)
-require(boot)
 
 bootBeisel <- function(d, nullLR) {
   start.par = c(.1, 0) # starting parameter values for the optimization
@@ -171,7 +168,6 @@ bootBeisel <- function(d, nullLR) {
   Exp.opt = GenSA(par = start.par[1], fn = LL.Exp, lower = 0.000001, upper = 100, d = d)
   Exp.opt.tau = Exp.opt$par
   LL.Exp.opt = -Exp.opt$value
-  
   ## 2) Find best tau and kappa
   GPD.opt = GenSA(par = start.par, fn = LL.GPD, lower = c(0.000001, -100), upper = c(100, 100), d = d)
   GPD.opt.tau = GPD.opt$par[1]
@@ -187,6 +183,11 @@ bootBeisel <- function(d, nullLR) {
 }
 
 ## Find a null distribution of likelihood ratio ####
+## 1) Find tau, When kappa = 0 for d = X
+Exp.opt = GenSA(par = start.par[1], fn = LL.Exp, lower = 0.000001, upper = 100, d = X)
+Exp.opt.tau = Exp.opt$par
+LL.Exp.opt = -Exp.opt$value
+
 B = 10000
 LR.null.dist = vector(length = B)
 for(b in 1:B){
@@ -242,19 +243,20 @@ colnames(bootBeisel_add) <- c("tau", "kappa", "LRT", "p.value")
 write.csv(bootBeisel_add, "bootBeisel_add.csv", row.names = F)
 
 # calculate mean and CI of bootstrap
-(mean(bootBeisel_nar$kappa))
-(CI(bootBeisel_nar$kappa))
-(mean(bootBeisel_nar$p.value))
-(CI(bootBeisel_nar$p.value))
-(mean(bootBeisel_nar$LRT))
-(CI(bootBeisel_nar$LRT))
+print("bootstrapped GPD fit mean parameters")
+print(mean(bootBeisel_nar$kappa))
+print(CI(bootBeisel_nar$kappa))
+print(mean(bootBeisel_nar$p.value))
+print(CI(bootBeisel_nar$p.value))
+print(mean(bootBeisel_nar$LRT))
+print(CI(bootBeisel_nar$LRT))
 
-(mean(bootBeisel_add$kappa))
-(CI(bootBeisel_add$kappa))
-(mean(bootBeisel_add$p.value))
-(CI(bootBeisel_add$p.value))
-(mean(bootBeisel_add$LRT))
-(CI(bootBeisel_add$LRT))
+print(mean(bootBeisel_add$kappa))
+print(CI(bootBeisel_add$kappa))
+print(mean(bootBeisel_add$p.value))
+print(CI(bootBeisel_add$p.value))
+print(mean(bootBeisel_add$LRT))
+print(CI(bootBeisel_add$LRT))
 
 
 # Compare means - proportion of beneficial muts, waiting time to beneficial mut
@@ -266,8 +268,8 @@ mutExp_combined %>%
 
 percBen_lm <- lm(percBeneficial ~ model * rankFactor, 
                    mutExp_wt %>% filter(is.finite(percBeneficial)))
-(summary(percBen_lm))
-(sqrt(diag(vcov(percBen_lm))) * qnorm(0.975))
+print(summary(percBen_lm))
+print(sqrt(diag(vcov(percBen_lm))) * qnorm(0.975))
 
 # Bootstrap expected waiting times 
 waitingTimeDiff <- function(data, n) {
@@ -285,7 +287,7 @@ waitingTimeDiff <- function(data, n) {
 
 d_waitingTime <- waitingTimeDiff(mutExp_wt, 100000)
 
-(d_waitingTime %>%
+print(d_waitingTime %>%
   summarise(meanNARWaitingTime = mean(sample_net),
             meanAddWaitingTime = mean(sample_add),
             CINARWaitingTime = CI(sample_net),
@@ -296,21 +298,21 @@ d_waitingTime <- waitingTimeDiff(mutExp_wt, 100000)
 
 # alpha/beta regression
 aZbZ_lm <- lm(pheno ~ aZbZ, data = plt_aZbZratio$data)
-(summary(aZbZ_lm))
+print(summary(aZbZ_lm))
 
 # Optimum phenotype - what aZbZ ratio gives exactly 2: from the above figure,
 # it's around 1.25
 opt_pheno_ratio <- genRatioLandscapeData(1.24, 1.26)
 opt_pheno_ratio$aZbZ <- opt_pheno_ratio$aZ / opt_pheno_ratio$bZ
-(opt_pheno_ratio[order(opt_pheno_ratio$fitness, decreasing = T)[1:2],])
+print(opt_pheno_ratio[order(opt_pheno_ratio$fitness, decreasing = T)[1:2],])
 
 
 # usage of molecular components (phi)
-(mean(d_molCompDiff$molCompDiff))
-(CI(d_molCompDiff$molCompDiff))
+print(mean(d_molCompDiff$molCompDiff))
+print(CI(d_molCompDiff$molCompDiff))
 
 # percentage of models with more than 1 step that used only alpha, only beta, or both
-(d_fix_ranked %>%
+print(d_fix_ranked %>%
   mutate(value_aZ = if_else(mutType == 3, value, 0),
          value_bZ = if_else(mutType == 4, value, 0)) %>%
   group_by(seed) %>%
