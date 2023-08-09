@@ -230,6 +230,9 @@ d_seg_ranked_add$weighteds <- d_seg_ranked_add$s * d_seg_ranked_add$Freq
 # there and then drifted the rest of the way
 # so need to calculate fitness effect of the mutation relative to that environment:
 # where they originated, and when the mutation first reached >50% frequency
+d_fix_ranked_combined <- rbind(d_fix_ranked, d_fix_ranked_add)
+d_fix_ranked_combined$model <- if_else(d_fix_ranked_combined$modelindex == 1, "Additive", "NAR")
+
 d_fix_ranked_combined %>% filter(s < 0) -> d_fix_del
 
 # need to find simulations with those muts
