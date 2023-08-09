@@ -163,7 +163,6 @@ LL.Exp <- function(par, d){ # equations from Beisel et al 2007
 require(GenSA)
 
 bootBeisel <- function(d, nullLR) {
-  start.par = c(.1, 0) # starting parameter values for the optimization
   ## 1) Find tau, When kappa = 0
   Exp.opt = GenSA(par = start.par[1], fn = LL.Exp, lower = 0.000001, upper = 100, d = d)
   Exp.opt.tau = Exp.opt$par
@@ -183,6 +182,7 @@ bootBeisel <- function(d, nullLR) {
 }
 
 ## Find a null distribution of likelihood ratio ####
+start.par = c(.1, 0) # starting parameter values for the optimization
 ## 1) Find tau, When kappa = 0 for d = X
 Exp.opt = GenSA(par = start.par[1], fn = LL.Exp, lower = 0.000001, upper = 100, d = X)
 Exp.opt.tau = Exp.opt$par
