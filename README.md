@@ -23,6 +23,9 @@ The analysis was done in R 4.3.1, using the following packages (with versions):
 - igraph (1.4.2)
 - fitdistrplus (1.1.8)
 - GenSA (1.1.8)
+- future (1.32.0)
+- doParallel (1.0.17)
+- foreach (1.5.2)
 
 
 ## Step 1
