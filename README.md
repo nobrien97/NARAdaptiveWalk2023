@@ -27,7 +27,6 @@ The analysis was done in R 4.3.1, using the following packages (with versions):
 - doParallel (1.0.17)
 - foreach (1.5.2)
 
-
 ## Step 1
 Clone this repo (or download the release) and the dataset. Extract the dataset to a convenient directory.
 In `runAnalysis.R`, replace the paths on lines 8 and 9 with the paths to where you saved this repo, and to
@@ -35,6 +34,6 @@ where you saved the dataset.
 
 ## Step 2
 Run runAnalysis.R 
-
-
+This will save the figures from the paper into the main repo directory (`NARAdaptiveWalk2023/`).
+Stats will be printed to the R console -- look at the source in stats.R for more information.
 
