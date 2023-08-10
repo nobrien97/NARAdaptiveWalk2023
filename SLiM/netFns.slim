@@ -1,0 +1,567 @@
+// General functions useful for quantitative population genetics - network models
+
+
+function (void) setCfgParam(s$ name, ifls value) {
+	// Automate defining constants for SLiMgui and slim command line
+	
+	if (!exists(name)) {
+		defineConstant(name, value);
+	}
+}
+
+function (void) writeTimeData(void) {
+	curTime = clock() - beginTime;
+	tFile = paste(sim.generation, asString(seed), modelindex, curTime, sep = ",");
+	writeFile(outTime, tFile, append = T);
+}
+
+
+function (void) assignQTLPositions(void) {
+	// mol traits are in order: first molMutProp[0]% are alpha, next molMutProp[1]% are beta, then KZ, then KXZ
+	// figure out the actual cutoffs 
+	molMutres = integer(size(molMutProp));
+
+	for (i in seqLen(size(molMutProp)))
+	{
+		if (i == 0) 
+		{ 
+			molMutres[i] = asInteger(ceil(molMutProp[i] * nloci)); 
+			next;
+		}
+
+		if (i == size(molMutProp)-1) 
+		{ 
+			molMutres[i] = nloci; 
+			next;
+		}
+
+		molMutres[i] = asInteger(ceil(molMutProp[i] * nloci)) + molMutres[i-1];
+	}
+
+	defineConstant("molMutCutoffs", molMutres-1);
+
+	// Define locations of QTLs, deleterious loci, and neutral loci
+	lengthvec = 0:(genomelength - 1);
+	pos_QTL = sample(lengthvec, nloci); 
+
+	sim.setValue("pos_QTL", pos_QTL); //store these positions in a sim value
+
+	
+	// Each gene needs to be put into a constraint bin: lambda low, med, high (given by the rows of Cfg param constraint
+	// First, we shuffle the QTLs, then assign a proportion of them to each type according to Cfg param con_props
+	// Assign to each type with a difference row of the matrix constraint
+	
+	// Store as sim value 0, 1, or 2, where these correspond to low/medium/high - grab these in mutation callback per mutation (seems slow?)
+	
+	con_genes = sample(lengthvec, genomelength); // Shuffle the QTL positions
+	sim.setValue("con_genes", con_genes); // store these constraint positions in a sim value for the mutation callback to reference
+	conEnds = asInteger(round(con_props * genomelength)); // Get the end positions for each proportion
+	// Define the genes that fall into conserved, neutral, evolving categories (lambda low med high)
+	
+	conEnds[size(conEnds)-1] = conEnds[size(conEnds)-1] + (genomelength - sum(conEnds)); // Make sure the last one is put to the very end so that all QTLs have a constraint value: !note! could be a source of error in proportions not being 100% precise
+	
+	conVal = repEach(c(0, 1, 2), conEnds);
+	
+	con_dict = matrix(c(con_genes, conVal), ncol = genomelength, byrow = T);
+	// for each QTL, store a 0, 1, or 2, with numbers chosen based on constraint proportion parameter
+	
+	sim.setValue("con_dict", con_dict);
+	
+	// Save the dictionary? Could store it as a separate file, or not? Need to think about the best way to do that
+	dictfile = paste(modelindex, asString(seed), c(con_dict[0,]), "%", c(con_dict[1,]), sep = ","); // % is so we easily know where to split it
+	
+	posfile = paste(modelindex, asString(seed), nloci, pos_QTL, sep = ","); // Output information on where the QTLs are, and the recombination structure of the genome
+	
+	writeFile(outPositions, posfile, append = T);
+	
+	writeFile(outDict, dictfile, append = T);
+	
+	if (debug == T) {
+		catn("Genic constraints written!\nLow constraint: " + size(conVal[conVal == 0]) +
+			"\nMedium constraint: " + size(conVal[conVal == 1]) + "\nHigh constraint: " + size(conVal[conVal == 2]));
+	}
+	
+	
+	// Define constants for plotting heterozygosity (diagnostics)
+	if (printH == T) {
+		sim.setValue("h2_history", NULL);
+		defineConstant("pngPath", writeTempFile("plot_", ".png", ""));
+		if (exists("slimgui"))
+			slimgui.openDocument(pngPath);
+	}
+	
+	
+	// Set delta difference value
+	sim.setValue("lastDist", 0.0);
+	sim.setValue("lastw", 0.0);
+	
+	// Set initial sample rates for adaptive sampling
+	if (adaptiveSampling == T) {
+		sim.setValue("sRate", samplerate);
+		sim.setValue("burnDelta", NULL);
+		sim.setValue("curTime", 0);
+	}
+
+}
+
+
+function (io<MutationType>$) sampleMutTypeFromSite(i$ pos) {
+// Find the correct mutation type options for a given position and sample one
+	
+	// Load the dictionary of constraints, find the mutation's position in that dictionary and choose the correct row 
+	// in the cfgparam constraints table
+	con_dict = sim.getValue("con_dict");
+	dict_pos = match(pos, con_dict[0,]); 
+	gene_constraint = constraints[c(con_dict[1, dict_pos]),];
+
+	// Load the actual positions of the QTLs
+	pos_QTL = sim.getValue("pos_QTL"); 
+		
+	// If we are an ubiquitin QTL we're in the first molMutProp[0]% of the nloci loci in pos_QTL - we will take the 
+	// ceiling of that to be consistent
+	// We can only sample neutral, deleterious, and aZ: m1, m2, m3
+	if (any(pos == pos_QTL[0:asInteger(molMutCutoffs[0])])) {
+		return sample(sim.mutationTypes[0:2], 1, weights = gene_constraint[0:2]);
+	}
+
+	// If we are at an enhancer site we're in the second molMutProp[1]% of the nloci loci in pos_QTL
+	// We can only sample neutral, deleterious, and bZ: m1, m2, m4
+	if (any(pos == pos_QTL[(molMutCutoffs[0]+1):molMutCutoffs[1]])) {
+		return sample(sim.mutationTypes[c(0:1, 3)], 1, weights = gene_constraint[c(0:1, 3)]);
+	}
+
+	// If we are at KZ site we're in the third molMutProp[2]% of the nloci loci in pos_QTL
+	// We can only sample neutral, deleterious, and KZ: m1, m2, m5
+	if (any(pos == pos_QTL[(molMutCutoffs[1]+1):molMutCutoffs[2]])) {
+		return sample(sim.mutationTypes[c(0:1, 4)], 1, weights = gene_constraint[c(0:1, 4)]);
+	}
+
+	// If we are at KXZ site we're in the fourth molMutProp[3]% of the nloci loci in pos_QTL
+	// We can only sample neutral, deleterious, and KXZ: m1, m2, m6
+	if (any(pos == pos_QTL[(molMutCutoffs[2]+1):molMutCutoffs[3]])) {
+		return sample(sim.mutationTypes[c(0:1, 5)], 1, weights = gene_constraint[c(0:1, 5)]);
+	}
+
+
+// If we still haven't figured it out, return m1
+	return sim.mutationTypes[0];
+
+}
+
+
+function (void) calcPhenotype(o<Individual> inds) {
+	// Calculate phenotypes for individuals based on their QTL effects - both segregating and substitutions		
+		inds.phenotype = sim.NARIntegrate(inds);
+}
+
+function (void) writeHetData(void) {
+	// Calculate/write SNP heterozygosity data
+	hets = calcHeterozygosityAtPosition(p1.individuals, sim.getValue("pos_QTL")[0:1]);
+	hetFile = paste(sim.generation, asString(seed), modelindex, hets, sep = ",");
+	writeFile(outHet, hetFile, append = T);
+}
+
+
+function (void) writeQuantGenOutput(o<Subpopulation> pop, s$ phase) {
+	// Write quant gen output for population statistics
+	// phase is where in the simulation we are: burn-in, stabsel around burn-in mean, or adaptation
+	// Slight differences between burnin, stab sel period, and test period - we need to account for those
+	
+	inds = pop.individuals;
+	// Construct string output for data to write to file
+	meanH = paste(calcHeterozygosity(pop.genomes), sep=",");
+	VA = paste(calcVA(inds, sim.mutationTypes[2]));
+	phenotypes = inds.phenotype;
+	phenomean = mean(phenotypes);
+	phenovar = var(phenotypes);
+	w = mean(inds.fitnessScaling);
+	molTraits = inds.ODEPars;
+	aZ = mean(molTraits[seq(1, length(inds.ODEPars)-1, by = 5)]);
+	bZ = mean(molTraits[seq(2, length(inds.ODEPars)-1, by = 5)]);
+	KZ = mean(molTraits[seq(3, length(inds.ODEPars)-1, by = 5)]);
+	KXZ = mean(molTraits[seq(4, length(inds.ODEPars)-1, by = 5)]);
+	
+	// If we are burning in, distance to optimum = 0, if we are in phase 2 then distance is relative to burninPheno,
+	// otherwise relative to optimum
+	// While here, we also have some other values to set for burn-in: there might not be a lastDist yet
+	
+	if (phase == "burnin") {
+		// If we're in stabsel around burn-in pheno
+		optimum = optBurn;
+		dist = mean(abs(phenotypes - optimum));
+	} else if (phase == "adaptation") {
+		// If we're in the shifted optimum phase
+		optimum = sim.getValue("optimum");
+		dist = mean(abs(phenotypes - optimum)); 
+	}
+		
+	if (isNULL(sim.getValue("lastDist"))) { 
+		deltaPheno = 0.0;
+	} else {
+		deltaPheno = dist - sim.getValue("lastDist");	
+	}
+	
+	if (isNULL(sim.getValue("lastw"))) { 
+		deltaw = 0.0;
+	} else {
+		deltaw = w - sim.getValue("lastw");	
+	}
+
+	
+	sim.setValue("lastDist", dist);
+	sim.setValue("lastw", w);
+	
+	
+	if (sim.generation == burnTime) {
+		optVal = optBurn + optShift;
+		sim.setValue("optimum", optVal);
+		catn("Optimum is: " + optVal + "\nStarting stabilising selection regime");
+		OptFile = paste(asString(seed), modelindex, optVal, sep = ",");
+		writeFile(outOpt, OptFile);
+		
+		dist = abs(phenomean - optVal); // Absolute values so that means aren't biased towards 0 by drift 		
+	}
+
+
+	Mfile = paste(sim.generation, asString(seed), modelindex, meanH, VA, phenomean, phenovar, dist, w, deltaPheno, deltaw, aZ, bZ, KZ, KXZ, sep=",");
+
+	writeFile(outQG, Mfile, append = T);
+
+}
+
+function (void) writeAlleleData(void) {
+
+	// Store vectors of unique mutations, sorted by the generation in which they originated
+	muts = sortBy(c(sim.mutations[sim.mutations.mutationType != m1]), "originGeneration");
+	
+	// same for substitutions
+	subs = sortBy(c(sim.substitutions[sim.substitutions.mutationType != m1]), "originGeneration");
+	
+	// Distance from the optimum - if we're in burn-in, distance is 0
+	dist = (sim.generation > burnTime) ? abs(mean(p1.individuals.phenotype) - sim.getValue("optimum")) else 0.0;
+	
+	// Set up an empty output to store all our mutations' information for this generation
+	mutsLines = NULL;
+	
+	// Put information on these unique mutations into a separate mutations file	
+	
+	// Check if there are any substitutions, if not we need to fix the output lines	by not including the \n character at the end of the last mutation line. 
+	// This is because writeFile() automatically adds a \n character, so we'd end up with an extra empty line if we do write that way
+	
+	condict = sim.getValue("con_dict");
+	genom = sim.subpopulations.genomes;
+	
+	for (mut in muts) {
+		mutFreq = mean(genom.containsMutations(mut));
+		mutCount = size(genom[genom.containsMutations(mut)]);
+		mutType = mut.mutationType.id;
+		mutValue = asString(mut.selectionCoeff);
+		mutChi = mut.selectionCoeff * sqrt(1/(2*dist));
+		dictPos = match(mut.position, condict[0,]); // Get the position of the mutation in our dictonary of gene constraints
+		mutCon = condict[1, dictPos]; // Store the row number of the genetic constraint (low, medium, high constraint)
+		mutsLine = paste(sim.generation, asString(seed), modelindex, mutType, mut.id, mut.position, mutCon, mut.originGeneration, mutValue, mutChi, mutFreq, mutCount, "NA", sep = ",");
+		mutsLine = paste0(mutsLine, "\n");
+		mutsLines = paste0(mutsLines, mutsLine);
+	
+	}
+	
+	subCount = N*2;
+	for (sub in subs) {
+		subFreq = 1.0;
+		subType = sub.mutationType.id;
+		subValue = asString(sub.selectionCoeff);
+		subChi = sub.selectionCoeff * sqrt(1/(2*dist));
+		dictPos = match(sub.position, condict[0,]);
+		subCon = condict[1, dictPos];
+		
+		subLine = paste(sim.generation, asString(seed), modelindex, subType, sub.id, sub.position, subCon, sub.originGeneration, subValue, subChi, subFreq, subCount, sub.fixationGeneration, sep = ",");
+		subLine = paste0(subLine, "\n");
+		
+		mutsLines = paste0(mutsLines, subLine); // Add substitutions to mutation output
+	
+	}
+	
+	// Write the mutations file
+	// Fail safe in case there are no mutations at some point and the for loop doesn't run
+	if (exists('mutsLine') | exists('subLine'))
+		writeFile(outMuts, mutsLines, append = T);
+}
+
+function (void) writeQuantileODEPar(o<Subpopulation> pop, [Nf quantiles = 0.5], [s$ type = "AUC"]) {
+	// Write ODE parameter combinations - median value and IQR quantiles by default
+	medianLine = paste(sim.generation, asString(seed), modelindex, pop.getQuantileODEPar(quantiles, type), sep = ",");
+	writeFile(outODEPars, medianLine, append = T);
+}
+
+
+function (void) calcFitnessGaussian(o<Individual> inds, fi$ optimum) {
+	// Calculate fitness from phenotype. Make sure this is only called after CalcPhenotype()!
+	phenotypes = inds.phenotype;
+	dists = (phenotypes - optimum)^2;
+	
+	// Make sure that phenotype is never below 0
+	dists[dists < 0] = 0.0;
+	
+	inds.fitnessScaling = exp(-(dists * width)); // Gaussian fitness function comes from Lande 1976: width is 1/2w^2
+	// Make sure we never have all individuals with 0 fitness
+	if (all(inds.fitnessScaling == 0.0)) { inds.fitnessScaling = 1e-6; }
+	sim.setValue("fitness", inds.fitnessScaling);
+
+}
+
+
+function (float) lerp(fi xmin, fi xmax, fi ymin, fi ymax, fi x) {
+	// Linear interpolation between two points
+	 y = ymin + (x - xmin)*((ymax - ymin)/(xmax - xmin));
+	 if (any(y > ymax))
+	 	return ymax;
+	 if (any(y < ymin))
+	 	return ymin;
+	 else
+	 	return y;
+}
+
+function (void) writeLDmat(o<Subpopulation> pop, l$ isBurnin) {
+	// Writes the pairwise LD matrix into a .tsv file
+	// isBurnin: is this the burnin matrix or the final matrix: just sets the filename
+	LDMat = matrix(sim.pairwiseR2(pop), nrow = genomelength, ncol = genomelength, byrow = T);
+	l = sapply(seqLen(nrow(LDMat)), "paste(LDMat[applyValue,], sep = '\t');");
+	writeFile(outLD[asInteger(!isBurnin)], l);
+}
+
+
+// Get variance-covariance matrix of molecular traits
+function (void) writeGMatrix(o<Subpopulation> pop) {
+	inds = pop.individuals;
+	aZ = inds.ODEPars[seq(1, size(inds.ODEPars)-1, by = 5)];
+	bZ = inds.ODEPars[seq(2, size(inds.ODEPars)-1, by = 5)];
+	KZ = inds.ODEPars[seq(3, size(inds.ODEPars)-1, by = 5)];
+	KXZ = inds.ODEPars[seq(4, size(inds.ODEPars)-1, by = 5)];
+
+	vaZ = setSmallValToZero(var(aZ));
+	vbZ = setSmallValToZero(var(bZ));
+	vKZ = setSmallValToZero(var(KZ));
+	vKXZ = setSmallValToZero(var(KXZ));
+	caZbZ = setSmallValToZero(cov(aZ, bZ)); caZKZ = setSmallValToZero(cov(aZ, KZ)); 
+	caZKXZ = setSmallValToZero(cov(aZ, KXZ)); cbZKZ = setSmallValToZero(cov(bZ, KZ)); 
+	cbZKXZ = setSmallValToZero(cov(bZ, KXZ)); cKZKXZ = setSmallValToZero(cov(KZ, KXZ));
+	
+	file = paste(sim.generation, asString(seed), modelindex, c(vaZ, caZbZ, caZKZ, caZKXZ, vbZ, cbZKZ, cbZKXZ, vKZ, cKZKXZ, vKXZ), sep=",");
+	writeFile(outGMat, file, append = T);
+} 
+
+// Helper function to fix floating point rounding error
+function (float) setSmallValToZero(float i) {
+	return ifelse(i < 1e-10, 0.0, i);
+}
+
+// Write individual outputs: phenotypes for each individual in the population, and midparent value, 
+// also alleles and moltraits
+function (void) writeIndOutput(o<Subpopulation> pop) {
+	inds = pop.sampleIndividuals(10);
+	lines = NULL;	
+	
+	//writeIndAlleleOutput(inds);
+
+	for (ind in inds) {
+		line = paste(sim.generation, asString(seed), modelindex, ind.index, ind.ODEPars, sep = ",");
+		line = paste0(line, "\n");
+		lines = paste0(lines, line); // Add line to output
+	}
+	writeFile(outInd, lines, append = T);
+}
+
+function (void) savePopState(void) {
+	sim.outputFull(outPopState, binary = T, pedigreeIDs = T);
+}
+
+function (void) writeIndAlleleOutput(o<Individual> inds) {
+	condict = sim.getValue("con_dict");
+
+	// Set up an empty output to store all our mutations' information for this generation
+	mutsLines = NULL;
+
+	for (ind in inds) {
+		muts = ind.genomes.mutations;
+		subs = sim.substitutions;
+		ind_id = ind.index;
+		dist = (sim.generation > burnTime) ? abs(mean(p1.individuals.phenotype) - sim.getValue("optimum")) else 0.0;
+
+		for (mut in muts) {
+			mutType = mut.mutationType.id;
+			mutValue = asString(mut.selectionCoeff);
+			mutChi = mut.selectionCoeff * sqrt(1/(2*dist));
+			dictPos = match(mut.position, condict[0,]); // Get the position of the mutation in our dictonary of gene constraints
+			mutCon = condict[1, dictPos]; // Store the row number of the genetic constraint (low, medium, high constraint)
+			mutsLine = paste(sim.generation, asString(seed), modelindex, ind_id, mutType, mut.id, mut.position, mutCon, mut.originGeneration, mutValue, mutChi, "NA", sep = ",");
+			mutsLine = paste0(mutsLine, "\n");
+			mutsLines = paste0(mutsLines, mutsLine);
+		}
+
+		subCount = N*2;
+		for (sub in subs) {
+			subFreq = 1.0;
+			subType = sub.mutationType.id;
+			subValue = asString(sub.selectionCoeff);
+			subChi = sub.selectionCoeff * sqrt(1/(2*dist));
+			dictPos = match(sub.position, condict[0,]);
+			subCon = condict[1, dictPos];
+			
+			subLine = paste(sim.generation, asString(seed), modelindex, ind_id, subType, sub.id, sub.position, subCon, sub.originGeneration, subValue, subChi, sub.fixationGeneration, sep = ",");
+			subLine = paste0(subLine, "\n");
+			
+			mutsLines = paste0(mutsLines, subLine); // Add substitutions to mutation output
+		
+		}
+	}
+	
+	// Write the mutations file
+	// Fail safe in case there are no mutations at some point and the for loop doesn't run
+	if (exists('mutsLine') | exists('subLine'))
+		writeFile(outMutsInd, mutsLines, append = T);
+}
+
+
+
+function (void) writeGenMap(void) {
+	// Writes a genetic map as a dataframe for AlphaSimR
+	// columns: marker name, chromosome, map position	
+	
+	// If we have free recombination, that's equivalent to having each locus on a different chromosome
+	// Calculate position of each locus
+	loci_len = nloci + 2;
+
+	if (rwide == 0.5) {
+		chromos = 1:(loci_len);
+		pos = rep(0, loci_len);
+	} else {
+		chromos = rep(1, loci_len);
+		pos = getRecomDistances(loci_len);
+	}
+	
+	markerNames = string(loci_len);
+	
+	for (i in seqAlong(markerNames)) {
+		markerNames[i] = paste("q", i, sep="_");
+	}
+	
+	genMap = DataFrame("markerName", markerNames,
+							 "chromosome", chromos,
+							 "position", pos);
+							 
+	genMap = genMap.serialize("csv");
+							 
+	writeFile(outGenMap, genMap[1:(length(genMap)-1)], append = T);
+}
+
+function (float) getRecomDistances(i$ loci_len) {
+	// Find the distance in morgans between each locus and the last
+	res = float(loci_len);
+	res[0] = 0;
+	qtls = sort(sim.getValue("pos_QTL"));
+	for (i in 1:(nloci-1)) {
+		prob_r = rwide * (qtls[i] - qtls[i-1]);
+		res[i] = res[i-1] + (50 * log(1/(1 - 2 * prob_r)))/100;
+	}
+	return res;
+}
+
+
+function (void) writeHaploPed(o<Subpopulation>$ pop, i$ n) {
+	inds = sample(pop.individuals, n);
+	ped = DataFrame("gen", rep(sim.generation, length(inds)),
+						 "seed", rep(seed, length(inds)),
+						 "modelindex", rep(modelindex, length(inds)),
+						 "id", inds.pedigreeID,
+						 "mother", inds.pedigreeParentIDs[rep(c(T, F), length(inds))],
+						 "father", inds.pedigreeParentIDs[rep(c(F, T), length(inds))]);
+	ped = ped.serialize("csv");
+// Note: Using all sites instead of just the QTLs, see if this makes a difference
+// although, there's no linkage and technically these sites shouldn't describe any of the variance in phenotype (???)
+//	qtls = sort(sim.getValue("pos_QTL"));
+	qtls = 0:(genomelength-1);
+	
+	// Extract haplotypes and qtl effect sizes
+	haplos = matrix(sim.getHaplos(inds.genomes, qtls), nrow = length(inds.genomes), ncol = length(qtls), byrow = T);
+	fx = paste(sim.generation, seed, modelindex, getFX(qtls, haplos), sep=",");
+	
+	
+	// Stick on generation and identifier data
+	haplos = cbind(rep(sim.generation, nrow(haplos)), 
+						rep(seed, nrow(haplos)),
+						rep(modelindex, nrow(haplos)),
+						haplos);
+	// Write output
+	l = sapply(seqLen(nrow(haplos)), "paste(haplos[applyValue,], sep=',');");
+	
+	writeFile(outHaplo, l, append = T);
+	writeFile(outPed, ped[1:(length(ped)-1)], append = T);
+	writeFile(outFX, fx, append = T);
+	
+	phenos_out = paste(sim.generation, seed, modelindex, inds.phenotype, sep=",");
+	mol_out = paste(sim.generation, seed, modelindex, inds.ODEPars, sep=",");
+	
+	writeFile(outPhenoSample, phenos_out, append = T);
+	writeFile(outMolSample, mol_out, append = T);
+	
+	rel = matrix(inds.relatedness(inds), nrow = length(inds), byrow = T);
+	rel = cbind(rep(asString(sim.generation), nrow(rel)), 
+					rep(asString(seed), nrow(rel)),
+					rep(asString(modelindex), nrow(rel)),
+					asString(rel));
+	
+	l = sapply(seqLen(nrow(rel)), "paste(rel[applyValue,], sep=',');");
+	writeFile(outRel, l, append = T);
+	
+	//sim.treeSeqOutput("out.trees");
+}
+
+function (void) writeHaplo(o<Subpopulation>$ pop, i$ n) {
+	inds = sample(pop.individuals, n);
+// Note: Using all sites instead of just the QTLs, see if this makes a difference
+// although, there's no linkage and technically these sites shouldn't describe any of the variance in phenotype (???)
+//	qtls = sort(sim.getValue("pos_QTL"));
+	qtls = 0:(genomelength-1);
+	
+	// Extract haplotypes and qtl effect sizes
+	haplos = matrix(sim.getHaplos(inds.genomes, qtls), nrow = length(inds.genomes), ncol = length(qtls), byrow = T);
+	fx = paste(sim.generation, seed, modelindex, getFX(qtls, haplos), sep=",");
+	
+	
+	// Stick on generation and identifier data
+	haplos = cbind(rep(sim.generation, nrow(haplos)), 
+						rep(seed, nrow(haplos)),
+						rep(modelindex, nrow(haplos)),
+						haplos);
+	// Write output
+	l = sapply(seqLen(nrow(haplos)), "paste(haplos[applyValue,], sep=',');");
+	
+	writeFile(outHaplo, l, append = T);
+	writeFile(outFX, fx, append = T);
+	
+	phenos_out = paste(sim.generation, seed, modelindex, inds.phenotype, sep=",");
+	mol_out = paste(sim.generation, seed, modelindex, inds.ODEPars, sep=",");
+	
+	writeFile(outPhenoSample, phenos_out, append = T);
+	writeFile(outMolSample, mol_out, append = T);
+}
+
+function (integer) colSums(integer mat) {
+	result = integer(ncol(mat));
+	for (i in seqLen(ncol(mat))) {
+		result[i] = sum(mat[,i]);
+	}
+	return result;
+}
+
+function (float) getFX(integer pos, integer haplos) {
+	result = float(length(pos));
+	posToGet = pos[asLogical(colSums(haplos))];
+	muts = sim.mutations[sim.mutations.mutationType != m1 & sim.mutations.mutationType != m2];
+	
+	for (i in seqLen(length(pos))) {
+		result[i] = (any(pos[i] == posToGet)) ? muts[muts.position == pos[i]].selectionCoeff else 0.0;
+
+	}
+	return result;
+}
