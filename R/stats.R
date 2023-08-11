@@ -35,13 +35,14 @@ print(d_fix_ranked_combined %>%
   summarise(n_nSteps = n(),
             nRows = nrow(.),
             percentHadnSteps = n_nSteps/nRows))
-  
-# linear model instead of bootstrap - not a **super** good fit, but 
-# sample size is large enough it shouldn't be a problem 
-mdl <- lm(gen ~ model, data = d_fix_ranked_combined %>% 
-            filter(rank > 1, phenomean < 1.9 | phenomean > 2.1) %>%
-      mutate(gen = gen - 50000))
-print(summary(mdl))
+
+# Difference in mean generation for an adaptive step
+# for populations with more than one step and haven't reached the optimum
+d_fix_ranked_combined %>% 
+  filter(rank > 1, phenomean < 1.9 | phenomean > 2.1) %>%
+  mutate(gen = gen - 50000) -> d_notYetAdapted
+
+print(wilcox.test(gen ~ model, data = d_notYetAdapted, conf.int = T))
 
 # 95% CI
 print(sqrt(diag(vcov(mdl))) * qnorm(0.975))
@@ -57,6 +58,8 @@ print(fit_nar$sd * qnorm(0.975))
 print(fit_add$sd * qnorm(0.975))
 print(summary(fit_nar))
 print(summary(fit_add))
+#plot(fit_add)
+#plot(fit_nar)
 
 # Find modes of mutation screen distribution
 d <- density(mutExp$s)
@@ -275,6 +278,7 @@ mutExp_combined %>%
 percBen_lm <- lm(percBeneficial ~ model * rankFactor, 
                    mutExp_wt %>% filter(is.finite(percBeneficial)))
 print(summary(percBen_lm))
+# plot(percBen_lm)
 print(sqrt(diag(vcov(percBen_lm))) * qnorm(0.975))
 
 # Bootstrap expected waiting times 
