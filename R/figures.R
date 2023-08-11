@@ -193,7 +193,7 @@ plotRatioLandscape(0.6, 3) -> plt_aZbZratio
 
 plt_aZbZratio +
   stat_poly_line(colour = "#AAAAAA", linetype = "dashed") +
-  stat_poly_eq(use_label(c("adj.R2", "p.value"), sep = "*\"; \"*"), 
+  stat_poly_eq(use_label(c("R2", "p.value"), sep = "*\"; \"*"), 
                label.x = "right", colour = "#000000") +
   geom_hline(yintercept = 2, linetype = "dashed") +
   theme(text = element_text(size = 14)) -> plt_aZbZratio
