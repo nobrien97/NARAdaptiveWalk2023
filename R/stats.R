@@ -97,8 +97,10 @@ print(d_fix_ranked_combined %>% filter(rank > 0) %>%
 mutExp_add_ben <- mutExp_add %>% filter(s > 0)
 mutExp_ben <- mutExp %>% filter(s > 0)
 
-
-# This code from Lebeuf-Taylor et al. 2019
+###############################################################
+# This code is modified from Lebeuf-Taylor et al. 2019 (doi: 10.7554/eLife.45952)
+# Code is licensed under CCA 4.0 https://creativecommons.org/licenses/by/4.0/
+#
 ## Testing the shape of the distribution of beneficial mutation ####
 
 # sample fitness effects and return a sorted vector
@@ -257,6 +259,10 @@ print(mean(bootBeisel_add$p.value))
 print(CI(bootBeisel_add$p.value))
 print(mean(bootBeisel_add$LRT))
 print(CI(bootBeisel_add$LRT))
+
+##############################################################################
+# End Lebeuf-Taylor et al. derived code
+##############################################################################
 
 
 # Compare means - proportion of beneficial muts, waiting time to beneficial mut
