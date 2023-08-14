@@ -101,7 +101,7 @@ mutExp_add_ben <- mutExp_add %>% filter(s > 0)
 mutExp_ben <- mutExp %>% filter(s > 0)
 
 ###############################################################
-# This code is modified from Lebeuf-Taylor et al. 2019 (doi: 10.7554/eLife.45952)
+# This code is modified from Lebeuf-Taylor et al. 2019 Fig. 1 source code (doi: 10.7554/eLife.45952)
 # Code is licensed under CCA 4.0 https://creativecommons.org/licenses/by/4.0/
 #
 ## Testing the shape of the distribution of beneficial mutation ####
