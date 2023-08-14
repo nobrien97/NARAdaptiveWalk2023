@@ -273,7 +273,7 @@ print(CI(bootBeisel_add$LRT))
 mutExp_combined %>% 
   group_by(seed, model, rankFactor) %>%
   summarise(percBeneficial = mean(as.integer(s > 0)),
-            waitingTime = 1/(10000 * (9.1528*10^-6) * percBeneficial)) -> mutExp_wt
+            waitingTime = 1/(20000 * (9.1528*10^-6) * percBeneficial)) -> mutExp_wt
 
 percBen_lm <- lm(percBeneficial ~ model * rankFactor, 
                    mutExp_wt %>% filter(is.finite(percBeneficial)))
