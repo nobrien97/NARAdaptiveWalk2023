@@ -199,3 +199,14 @@ hist(bootBeisel_nar$kappa, breaks = 100)
 ##############################################################################
 bootBeisel_add_nonpool <- read.csv("bootBeisel_add_nonpool.csv")
 bootBeisel_nar_nonpool <- read.csv("bootBeisel_nar_nonpool.csv")
+
+# percent in each bin
+bootBeisel_add_nonpool %>% 
+  summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
+            percWeibull = sum(kappa <= -1)/n(),
+            percFrechet = sum(kappa >= 1)/n())
+
+bootBeisel_nar_nonpool %>% 
+  summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
+            percWeibull = sum(kappa <= -1)/n(),
+            percFrechet = sum(kappa >= 1)/n())
