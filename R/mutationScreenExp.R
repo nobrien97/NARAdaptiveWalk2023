@@ -113,7 +113,7 @@ MutationScreenExp <- function(fixed, n, isAdditive = F) {
 }
 
 # seed <- sample(1:.Machine$integer.max, 1)
-# 18799215
+# sampled 18799215
 seed <- 18799215
 set.seed(seed)
 mutExp <- MutationScreenExp(d_fix_ranked, 1000)
