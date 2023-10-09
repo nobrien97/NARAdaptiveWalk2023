@@ -1,5 +1,6 @@
 require(igraph)
 require(ggraph)
+require(extRemes)
 
 # Plot fitness landscape
 plotaZbZLandscape <- function(minVal, maxVal) {
@@ -174,6 +175,52 @@ plotbZaZvsaZLandscape <- function(minValaZ, maxValaZ, minRatio, maxRatio) {
         colour = guide_colourbar(barwidth = 10, title.vjust = 0.87)) # i love magic numbers
     )
 }
+
+plotbZaZvsbZLandscape <- function(minValbZ, maxValbZ, minRatio, maxRatio) {
+  GRID_RES <- 400
+  bZVals <- seq(minValbZ, maxValbZ, length.out = GRID_RES)
+  ratios <- seq(minRatio, maxRatio, length.out = GRID_RES)
+  combos <- expand.grid(bZVals, ratios)
+  colnames(combos) <- c("bZVals", "ratios")
+  
+  # calculate beta values from aZ values and ratios
+  combos$aZVals <- combos$bZVals * (1/combos$ratios)
+  combos <- drop_na(combos)
+  
+  d_grid <- data.frame(aZ = combos$aZVals,
+                       bZ = combos$bZVals,
+                       KZ = 1,
+                       KXZ = 1) %>% distinct()  
+  
+  write.table(d_grid, "d_pairinput.csv", sep = ",", col.names = F, row.names = F)
+  
+  d_landscape <- runLandscaper("d_pairinput.csv", "d_pairwiselandscape.csv", 0.05, 2, 8)
+  cc <- paletteer_c("viridis::viridis", 3, direction = 1)
+  
+  minFit <- 0.8 #min(d_landscape$fitness)
+  maxFit <- max(d_landscape$fitness)
+  # Rescale fitness values so we can change gradient breaks
+  wValues <- c(0,
+               (0.90-minFit)/(maxFit - minFit),
+               (0.99-minFit)/(maxFit - minFit),
+               1)
+  
+  suppressWarnings(
+    ggplot(d_landscape %>% mutate(bZaZ = bZ/aZ), 
+           aes(x = bZ, y = bZaZ, colour = fitness)) +
+      geom_point() +
+      scale_colour_gradientn(colors = c(cc[1], cc), 
+                             limits = c(minFit, 1),
+                             values = wValues, na.value = cc[1]) +
+      labs(x = TeX("$\\beta_Z$"), y = TeX("$\\beta_Z/\\alpha_Z$"), 
+           colour = "Fitness (w)") +
+      theme_bw() + 
+      theme(legend.position = "bottom", text = element_text(size = 14)) +
+      guides(
+        colour = guide_colourbar(barwidth = 10, title.vjust = 0.87)) # i love magic numbers
+  )
+}
+
 
 genRatioLandscapeData <- function(minRatio, maxRatio) {
   GRID_RES <- 1000

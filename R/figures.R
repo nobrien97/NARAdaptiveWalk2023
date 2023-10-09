@@ -48,6 +48,58 @@ fig1
 
 ggsave("NARgraph.png", fig1, width = 8, height = 4, device = png, bg = "white")
 
+# Fig. Extreme value dist - gumbel vs frechet vs weibull
+d_evd <- data.frame(index = seq(-4, 4, length = 1000),
+                    Gamma = devd(seq(-4, 4, length = 1000), shape = 0),
+                    Weibull = devd(seq(-4, 4, length = 1000), shape = -1),
+                    Frechet = devd(seq(-4, 4, length = 1000), shape = 1))
+
+pivot_longer(d_evd, 
+             cols = c("Gamma", "Weibull", "Frechet"), values_to = "val",
+             names_to = "model") -> d_evd
+
+ggplot(d_evd %>% 
+         mutate(model = factor(model, levels = c("Gamma", "Weibull", "Frechet"))), 
+       aes(x = index, y = val, linetype = model)) +
+  geom_line() +
+  labs(y = "Density", x = "Extreme value", linetype = "Domain") +
+  scale_linetype_discrete(labels = c("Gamma", "Weibull", "Fréchet")) +
+  theme_bw() + 
+  theme(text = element_text(size = 16), legend.position = "bottom") -> plt_gpd
+plt_gpd
+
+ggsave("fig_gpd.png", plt_gpd, device = png, bg = "white")
+
+# Supp Fig. Generalized Pareto - gumbel vs frechet vs weibull
+d_evd <- data.frame(index = seq(0.01, 8, length = 1000),
+                    Gamma = devd(seq(0.01, 8, length = 1000), shape = 0, type = "GP"),
+                    Weibull = devd(seq(0.01, 8, length = 1000), shape = -1, type = "GP"),
+                    Frechet = devd(seq(0.01, 8, length = 1000), shape = 1, type = "GP"))
+
+pivot_longer(d_evd, 
+             cols = c("Gamma", "Weibull", "Frechet"), values_to = "val",
+             names_to = "model") -> d_evd
+
+ggplot(d_evd %>% 
+         mutate(model = factor(model, levels = c("Gamma", "Weibull", "Frechet"))), 
+       aes(x = index, y = val, linetype = model)) +
+  geom_line() +
+  geom_vline(xintercept = 0, colour = "red") +
+  labs(y = "Density", x = "Fitness (w)", linetype = "Domain") +
+  scale_linetype_discrete(labels = c(TeX("Gamma ($\\kappa = 0$)"), 
+                                     TeX("Weibull ($\\kappa < 0$)"), 
+                                     TeX("Fréchet ($\\kappa > 0$)"))) +
+  theme_bw() + 
+  guides(linetype=guide_legend(nrow=3,byrow=TRUE)) +
+  theme(text = element_text(size = 16), legend.position = "bottom",
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) -> plt_gpd
+plt_gpd
+
+ggsave("fig_gpd_K.png", plt_gpd, device = png, bg = "white", width = 4, height = 4)
+
 
 # phenomean and adaptive walk
 # A - phenomean ridgeline plot
@@ -60,7 +112,7 @@ ggplot(d_adapted_walk,
        aes(y = as.factor(gen_group), x = phenomean, fill = modelindex)) +
   geom_density_ridges(alpha = 0.4) +
   geom_vline(xintercept = 2, linetype = "dashed") +
-  scale_fill_paletteer_d("ggsci::nrc_npg", labels = c("Additive", "NAR")) +
+  scale_fill_paletteer_d("ggsci::nrc_npg", labels = c("Additive", "Network")) +
   labs(y = "Generations post-optimum shift", x = "Phenotype mean", 
        fill = "Model") +
   theme_bw() +
@@ -89,11 +141,11 @@ plot_grid(plt_phenomean_dist + theme(legend.position = "none"),
           labels = "AUTO") -> plt_traitevo
 
 plot_grid(plt_traitevo, leg, nrow = 2, rel_heights = c(1, 0.1)) -> plt_traitevo
-ggsave("fig_traitevolution.png", plt_traitevo, device = png, bg = "white")
+ggsave("fig_traitevolution.png", plt_traitevo, width = 9.22, height = 6.39, device = png, bg = "white")
 
 
 # distribution of fixations and step size over time
-d_fix_ranked_combined$model <- if_else(d_fix_ranked_combined$modelindex == 1, "Additive", "NAR")
+d_fix_ranked_combined$model <- if_else(d_fix_ranked_combined$modelindex == 1, "Additive", "Network")
 
 ggplot(d_fix_ranked_combined %>% filter(rank > 0), aes(x = s, fill = model)) +
   geom_density(alpha = 0.4) + 
@@ -119,7 +171,7 @@ plot_grid(plt_distfixed,
           labels = "AUTO") -> plt_DFEfixations
 
 plot_grid(plt_DFEfixations, leg, nrow = 2, rel_heights = c(1, 0.1)) -> plt_DFEfixations
-ggsave("fig_fixations.png", plt_DFEfixations, device = png, bg = "white")
+ggsave("fig_fixations.png", plt_DFEfixations, width = 9.22, height = 6.39, device = png, bg = "white")
 
 
 # space of possible mutations (mutation screen)
@@ -133,13 +185,36 @@ ggplot(mutExp_combined, aes(y = rankFactor, x = s, fill = model)) +
   theme(text = element_text(size = 12), legend.position = "none") -> plt_effectsizerandom_time
 plt_effectsizerandom_time
 
+ggplot(mutExp_combined %>% filter(model == "Additive"), 
+       aes(y = rankFactor, x = s, fill = model)) +
+  geom_density_ridges(alpha = 0.4) +
+  scale_fill_paletteer_d("ggsci::nrc_npg") +
+  scale_y_discrete(labels = parse(text=TeX(step_labs))) +
+  labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
+  lims(x = c(-1.0375081, 0.2791461)) +
+  theme_bw() +
+  theme(text = element_text(size = 14), legend.position = "none")
+ggsave("fig_mutationscreen_add.png", device = png, width = 6, height = 6.5)
+
+ggplot(mutExp_combined %>% filter(model == "NAR"), 
+       aes(y = rankFactor, x = s)) +
+  geom_density_ridges(alpha = 0.4, fill = "#4DBBD5FF") +
+  scale_fill_paletteer_d("ggsci::nrc_npg") +
+  scale_y_discrete(labels = parse(text=TeX(step_labs))) +
+  labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
+  lims(x = c(-1.0375081, 0.2791461)) +
+  theme_bw() +
+  theme(text = element_text(size = 16), legend.position = "none")
+ggsave("fig_mutationscreen_nar.png", device = png, width = 6, height = 6)
+
+
 # B: Proportion of mutations that are beneficial
 ggplot(mutExp_sum_combined, aes(x = rankFactor, y = percBeneficial, colour = model)) +
-  geom_point() +
+  geom_point(alpha = 0.4) +
   geom_errorbar(mapping = aes(ymin = percBeneficial - CIperc, 
                               ymax = percBeneficial + CIperc),
-                width = 0.2) +
-  geom_line(aes(group = model)) +
+                width = 0.2, alpha = 0.4) +
+  geom_line(aes(group = model), alpha = 0.4) +
   scale_colour_paletteer_d("ggsci::nrc_npg") +
   scale_x_discrete(labels = parse(text=TeX(step_labs))) +
   labs(x = "Adaptive step", y = "Proportion of\nbeneficial mutations (s > 0)",
@@ -149,17 +224,17 @@ ggplot(mutExp_sum_combined, aes(x = rankFactor, y = percBeneficial, colour = mod
 plt_propbeneficial
 
 # C: Waiting time to a beneficial mutation
-ggplot(mutExp_sum_combined %>% mutate(waitingTime = 1/(10000 * (9.1528*10^-6) * percBeneficial),
-                                      CIWaitingTime_lower = 1/(10000 * (9.1528*10^-6) * (percBeneficial - CIperc)),
-                                      CIWaitingTime_upper = 1/(10000 * (9.1528*10^-6) * (percBeneficial + CIperc))),
+ggplot(mutExp_sum_combined %>% mutate(waitingTime = 1/(20000 * (9.1528*10^-6) * percBeneficial),
+                                      CIWaitingTime_lower = 1/(20000 * (9.1528*10^-6) * (percBeneficial - CIperc)),
+                                      CIWaitingTime_upper = 1/(20000 * (9.1528*10^-6) * (percBeneficial + CIperc))),
        aes(x = rankFactor, y = waitingTime, colour = model)) +
-  geom_point() +
+  geom_point(alpha = 0.4) +
   geom_errorbar(mapping = aes(ymin = CIWaitingTime_lower, 
                               ymax = CIWaitingTime_upper),
-                width = 0.2) +
+                width = 0.2, alpha = 0.4) +
   scale_x_discrete(labels = parse(text=TeX(step_labs))) +
   scale_colour_paletteer_d("ggsci::nrc_npg") +
-  geom_line(aes(group=model)) +
+  geom_line(aes(group=model), alpha = 0.4) +
   labs(x = "Adaptive step", y = "Expected waiting time\nto beneficial mutation", colour = "Model") +
   theme_bw() + 
   theme(text = element_text(size = 12), legend.position = "none") -> plt_waitingtime
@@ -179,6 +254,18 @@ plt_mutationscreen
 
 ggsave("fig_mutationscreen.png", plt_mutationscreen, width = 10, height = 6, device = png, bg = "white")
 
+# Supp fig: mutation screen by mutation type
+ggplot(mutExp_combined %>% filter(model == "NAR", rank > 0), 
+       aes(y = rankFactor, x = s, fill = mutType)) +
+  geom_density_ridges(alpha = 0.4) +
+  scale_fill_manual(values = paletteer_d("ggsci::nrc_npg", 5)[c(3,5)], labels = mutType_names)+
+  scale_y_discrete(labels = parse(text=TeX(step_labs[2:4]))) +
+  labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
+  theme_bw() +
+  theme(text = element_text(size = 12), legend.position = "bottom") -> plt_effectsizemuttype
+plt_effectsizemuttype
+ggsave("sfig_mutationscreen_muttype.png", device = png, width = 6, height = 5)
+
 
 # fitness landscape and aZbZ ratio
 # A - fitness landscape
@@ -187,17 +274,15 @@ plt_aZbZ_landscape
 
 # B - alpha vs beta/alpha landscape
 plotbZaZvsaZLandscape(0, 3, 0, 3) -> plt_bZaZ_aZ_landscape
-
+plt_bZaZ_aZ_landscape
 # C - GPW map of aZbZ
-plotRatioLandscape(0.6, 3) -> plt_aZbZratio
+plotRatioLandscape(0.5, 3) -> plt_aZbZratio
 
 plt_aZbZratio +
-  stat_poly_line(colour = "#AAAAAA", linetype = "dashed") +
-  stat_poly_eq(use_label(c("R2", "p.value"), sep = "*\"; \"*"), 
-               label.x = "right", colour = "#000000") +
   geom_hline(yintercept = 2, linetype = "dashed") +
+  scale_x_continuous(breaks = seq(0.5, 3, by = 0.5)) +
   theme(text = element_text(size = 14)) -> plt_aZbZratio
-
+plt_aZbZratio
 
 # D - difference in evolution among alpha and beta
 ggplot(d_molCompDiff,
@@ -239,7 +324,7 @@ ggplot(d_fix_ranked_combined %>% filter(rank > 0),
                                         ymax = ratio + CIRatio,
                                         colour = model), width = 0.1) +
   scale_colour_paletteer_d("ggsci::nrc_npg", guide = NULL) +
-  scale_x_discrete(labels = c("Additive", "NAR")) +
+  scale_x_discrete(labels = c("Additive", "Network")) +
   labs(x = "Model", y = "Fixed effect/mean phenotype ratio") +
   theme_bw() + 
   theme(text = element_text(size = 16), legend.position = "bottom") -> plt_segfixedcont
@@ -254,7 +339,7 @@ ggplot(d_com_adapted %>% filter((modelindex == 1 & seed == 1448101263 & mutID ==
                                 gen >= 49000) %>% 
          distinct() %>%
          mutate(gen = gen - 50000, 
-                model = if_else(modelindex == 1, "Additive", "NAR")), 
+                model = if_else(modelindex == 1, "Additive", "Network")), 
        aes(x = gen, y = Freq, colour = model)) +
   geom_line(linewidth = 1) +
   theme_bw() +
@@ -266,7 +351,8 @@ ggplot(d_com_adapted %>% filter((modelindex == 1 & seed == 1448101263 & mutID ==
 ggsave("sfig_balsel.png", device = png)
 
 # Supp fig: fitness effect difference in deleterious fixations
-ggplot(d_del_diffs, 
+ggplot(d_del_diffs %>%
+         mutate(model = ifelse(model == "Additive", "Additive", "Network")), 
        aes(x = diff_s, fill = model)) +
   geom_density(alpha = 0.4) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
@@ -275,7 +361,8 @@ ggplot(d_del_diffs,
        y = "Density", fill = "Model") +
   theme(text = element_text(size = 16), legend.position = "bottom") -> plt_delfixed_s
 
-ggplot(d_del_diffs, 
+ggplot(d_del_diffs %>%
+         mutate(model = ifelse(model == "Additive", "Additive", "Network")), 
        aes(x = Freq, fill = model)) +
   geom_density(alpha = 0.4) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
@@ -299,7 +386,8 @@ ggsave("sfig_delfixations.png", plt_delfixed, device = png, bg = "white")
 
 # Supp fig: heterozygosity
 # should be 0 most of the time if we're under SSWM
-ggplot(d_Ho_sum %>% mutate(gen = gen - 50000), 
+ggplot(d_Ho_sum %>% mutate(gen = gen - 50000, 
+                           model = ifelse(model == "Additive", "Additive", "Network")), 
        aes(x = gen, y = meanHo, colour = model)) +
   geom_line() +
   geom_ribbon(aes(ymin = meanHo - CIHo, ymax = meanHo + CIHo,
@@ -324,7 +412,7 @@ ggplot(d_fix_ranked_combined %>%
   geom_density_ridges(alpha = 0.4) +
   scale_y_discrete(labels = parse(text=TeX(step_labs[2:4]))) +
   scale_x_continuous(labels = scales::comma) +
-  scale_fill_paletteer_d("ggsci::nrc_npg", labels = c("Additive", "NAR")) +
+  scale_fill_paletteer_d("ggsci::nrc_npg", labels = c("Additive", "Network")) +
   labs(x = "Fixation generation (post-optimum shift)", y = "Adaptive step", 
        fill = "Model") +
   theme_bw() +
