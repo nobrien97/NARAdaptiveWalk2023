@@ -210,3 +210,14 @@ bootBeisel_nar_nonpool %>%
   summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
             percWeibull = sum(kappa <= -1)/n(),
             percFrechet = sum(kappa >= 1)/n())
+
+bootBeisel_add %>% 
+  summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
+            percWeibull = sum(kappa <= -1)/n(),
+            percFrechet = sum(kappa >= 1)/n())
+
+bootBeisel_nar %>% 
+  summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
+            percWeibull = sum(kappa <= -1)/n(),
+            percFrechet = sum(kappa >= 1)/n())
+
