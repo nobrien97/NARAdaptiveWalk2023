@@ -3,6 +3,7 @@ library(fitdistrplus)
 library(multimode)
 library(boot)
 library(moments)
+library(emmeans)
 
 # Number of pops adapted
 print(d_qg %>% group_by(modelindex) %>%
@@ -43,9 +44,6 @@ d_fix_ranked_combined %>%
   mutate(gen = gen - 50000) -> d_notYetAdapted
 
 print(wilcox.test(gen ~ model, data = d_notYetAdapted, conf.int = T))
-
-# 95% CI
-print(sqrt(diag(vcov(mdl))) * qnorm(0.975))
 
 # fit gamma distribution to fixed effects
 fit_nar <- fitdist((d_fix_ranked %>% filter(rank > 0, s > 0))$s, 
@@ -105,6 +103,13 @@ mutExp_ben <- mutExp %>% filter(s > 0)
 # Code is licensed under CCA 4.0 https://creativecommons.org/licenses/by/4.0/
 #
 ## Testing the shape of the distribution of beneficial mutation ####
+# Set seed for waiting time
+#seed <- sample(1:.Machine$integer.max, 1)
+# sampled 243945692
+seed <- 243945692
+set.seed(seed)
+
+
 
 # sample fitness effects and return a sorted vector
 sampleFitnessEffects <- function(s, n) {
@@ -183,46 +188,33 @@ bootBeisel <- function(d, nullLR) {
   
   P.value = sum(LRT>nullLR)/length(d)
   return(c(GPD.opt.tau, GPD.opt.kappa, LRT, P.value))
-  
 }
 
 ## Find a null distribution of likelihood ratio ####
-start.par = c(.1, 0) # starting parameter values for the optimization
-## 1) Find tau, When kappa = 0 for d = X
-Exp.opt = GenSA(par = start.par[1], fn = LL.Exp, lower = 0.000001, upper = 100, d = X)
-Exp.opt.tau = Exp.opt$par
-LL.Exp.opt = -Exp.opt$value
-
-B = 10000
-LR.null.dist = vector(length = B)
-for(b in 1:B){
-  X = rexp(n = length(X), rate = 1/Exp.opt.tau)
-  Exp.null.opt = optim(par = start.par[1], fn = LL.Exp, method = "Brent", lower = 0.000001, upper = 100, d = X)
-  LL.Exp.null.opt = -Exp.null.opt$value
-  ## 2) Find best tau and kappa
-  GPD.null.opt = optim(par = c(Exp.opt.tau, 0), fn = LL.GPD, method = "L-BFGS-B", lower = c(0.000001, -100), upper = c(100, 100), d = X)
-  # print(b)
-  # GPD.null.opt = GenSA(par = start.par, fn = LL.GPD, lower = c(0.000001, -100), upper = c(100, 100))
-  LL.GPD.null.opt = -GPD.null.opt$value
-  ## Likelihood ratio
-  LR.null.dist[b] = LL.Exp.null.opt/LL.GPD.null.opt
+calcNullDist <- function(B, X) {
+  start.par = c(.1, 0) # starting parameter values for the optimization
+  ## 1) Find tau, When kappa = 0 for d = X
+  Exp.opt = GenSA(par = start.par[1], fn = LL.Exp, lower = 0.000001, upper = 100, d = X)
+  Exp.opt.tau = Exp.opt$par
+  LL.Exp.opt = -Exp.opt$value
+  
+  LR.null.dist = vector(length = B)
+  for(b in 1:B){
+    X = rexp(n = length(X), rate = 1/Exp.opt.tau)
+    Exp.null.opt = optim(par = start.par[1], fn = LL.Exp, method = "Brent", lower = 0.000001, upper = 100, d = X)
+    LL.Exp.null.opt = -Exp.null.opt$value
+    ## 2) Find best tau and kappa
+    GPD.null.opt = optim(par = c(Exp.opt.tau, 0), fn = LL.GPD, method = "L-BFGS-B", lower = c(0.000001, -100), upper = c(100, 100), d = X)
+    # print(b)
+    # GPD.null.opt = GenSA(par = start.par, fn = LL.GPD, lower = c(0.000001, -100), upper = c(100, 100))
+    LL.GPD.null.opt = -GPD.null.opt$value
+    ## Likelihood ratio
+    LR.null.dist[b] = LL.Exp.null.opt/LL.GPD.null.opt
+  }
+  return(LR.null.dist)
 }
 
-bootBeisel_nar <- data.frame(tau = numeric(B),
-                             kappa = numeric(B),
-                             LRT = numeric(B),
-                             p.value = numeric(B))
-
-for (b in 1:B) {
-  d <- sampleFitnessEffects(mutExp_ben$s, 1000)
-  bootBeisel_nar[b, ] <- bootBeisel(d, LR.null.dist)
-}
-write.csv(bootBeisel_nar, "bootBeisel_nar.csv", row.names = F)
-
-bootBeisel_add <- data.frame(tau = numeric(B),
-                             kappa = numeric(B),
-                             LRT = numeric(B),
-                             p.value = numeric(B))
+LR.null.dist <- calcNullDist(10000, X)
 
 library(future)
 library(doParallel)
@@ -231,8 +223,34 @@ library(foreach)
 cl <- makeCluster(future::availableCores())
 registerDoParallel(cl)
 
+# 10,000 replicates
+B = 10000
+
+bootBeisel_nar <- data.frame(tau = numeric(B),
+                             kappa = numeric(B),
+                             LRT = numeric(B),
+                             p.value = numeric(B))
+
+bootBeisel_nar <- foreach(b=1:B, .combine = "rbind") %dopar% {
+  require(GenSA)
+  d <- sampleFitnessEffects(mutExp_ben$s, 1000)
+  bootBeisel_nar[b, ] <- bootBeisel(d, LR.null.dist)
+}
+
+bootBeisel_nar <- as.data.frame(bootBeisel_nar)
+colnames(bootBeisel_nar) <- c("tau", "kappa", "LRT", "p.value")
+
+write.csv(bootBeisel_nar, "bootBeisel_nar.csv", row.names = F)
+
+bootBeisel_add <- data.frame(tau = numeric(B),
+                             kappa = numeric(B),
+                             LRT = numeric(B),
+                             p.value = numeric(B))
+
+
 # additive
 X <- sampleFitnessEffects(mutExp_add_ben$s, 1000)
+LR.null.dist <- calcNullDist(10000, X)
 
 #Run in parallel
 bootBeisel_add <- foreach(b=1:B, .combine = "rbind") %dopar% {
@@ -281,6 +299,13 @@ print(summary(percBen_lm))
 # plot(percBen_lm)
 print(sqrt(diag(vcov(percBen_lm))) * qnorm(0.975))
 
+# Marginal means
+percBen_em <- emmeans(percBen_lm, pairwise ~ model | rankFactor)
+# emmip(percBen_lm, ~ model | rankFactor, CIs = T)
+# percBen_em$emmeans
+# percBen_em$contrasts
+print(summary(pairs(regrid(percBen_em)), by = NULL))
+
 # Bootstrap expected waiting times 
 waitingTimeDiff <- function(data, n) {
   data <- data %>% filter(is.finite(waitingTime))
@@ -294,8 +319,13 @@ waitingTimeDiff <- function(data, n) {
   )
   return(result)
 }
-
+# Set seed for waiting time
+#seed <- sample(1:.Machine$integer.max, 1)
+# sampled 716691235
+seed <- 716691235
+set.seed(seed)
 d_waitingTime <- waitingTimeDiff(mutExp_wt, 100000)
+t.test(d_waitingTime$diff)
 
 print(d_waitingTime %>%
   summarise(meanNARWaitingTime = mean(sample_net),
@@ -310,10 +340,10 @@ print(d_waitingTime %>%
 aZbZ_lm <- lm(pheno ~ aZbZ, data = plt_aZbZratio$data)
 print(summary(aZbZ_lm))
 
-# Optimum phenotype - what aZbZ ratio gives exactly 2: from the above figure,
-# it's around 1.25
-opt_pheno_ratio <- genRatioLandscapeData(1.24, 1.26)
-opt_pheno_ratio$aZbZ <- opt_pheno_ratio$aZ / opt_pheno_ratio$bZ
+# Optimum phenotype - what bZaZ ratio gives exactly 2: from the above figure,
+# it's around 0.8
+opt_pheno_ratio <- genRatioLandscapeData(0.8, 0.81)
+opt_pheno_ratio$bZaZ <- opt_pheno_ratio$bZ / opt_pheno_ratio$aZ
 print(opt_pheno_ratio[order(opt_pheno_ratio$fitness, decreasing = T)[1:2],])
 
 
