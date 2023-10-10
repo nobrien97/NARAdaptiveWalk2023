@@ -4,6 +4,9 @@ library(multimode)
 library(boot)
 library(moments)
 library(emmeans)
+library(future)
+library(doParallel)
+library(foreach)
 
 # Number of pops adapted
 print(d_qg %>% group_by(modelindex) %>%
@@ -173,6 +176,7 @@ LL.Exp <- function(par, d){ # equations from Beisel et al 2007
 require(GenSA)
 
 bootBeisel <- function(d, nullLR) {
+  start.par = c(.1, 0) # starting parameter values for the optimization
   ## 1) Find tau, When kappa = 0
   Exp.opt = GenSA(par = start.par[1], fn = LL.Exp, lower = 0.000001, upper = 100, d = d)
   Exp.opt.tau = Exp.opt$par
@@ -214,12 +218,9 @@ calcNullDist <- function(B, X) {
   return(LR.null.dist)
 }
 
-LR.null.dist <- calcNullDist(10000, X)
+LR.null.dist <- calcNullDist(1000, X)
 
-library(future)
-library(doParallel)
-library(foreach)
-
+# Do in parallel
 cl <- makeCluster(future::availableCores())
 registerDoParallel(cl)
 
@@ -250,7 +251,7 @@ bootBeisel_add <- data.frame(tau = numeric(B),
 
 # additive
 X <- sampleFitnessEffects(mutExp_add_ben$s, 1000)
-LR.null.dist <- calcNullDist(10000, X)
+LR.null.dist <- calcNullDist(1000, X)
 
 #Run in parallel
 bootBeisel_add <- foreach(b=1:B, .combine = "rbind") %dopar% {
@@ -281,6 +282,9 @@ print(CI(bootBeisel_add$p.value))
 print(mean(bootBeisel_add$LRT))
 print(CI(bootBeisel_add$LRT))
 
+# Now run a similar analysis but instead of sampling from a joint distribution,
+# sample individually within each simulation.
+source("beisel_nonpooled.R")
 ##############################################################################
 # End Lebeuf-Taylor et al. derived code
 ##############################################################################
