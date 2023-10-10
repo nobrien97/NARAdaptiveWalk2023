@@ -1,3 +1,6 @@
+library(future)
+library(doParallel)
+library(foreach)
 # Test % of K in >0, <0 and ~ 0 groups
 ###############################################################
 # This code is modified from Lebeuf-Taylor et al. 2019 Fig. 1 source code (doi: 10.7554/eLife.45952)
@@ -72,6 +75,7 @@ LL.Exp <- function(par, d){ # equations from Beisel et al 2007
 require(GenSA)
 
 bootBeisel <- function(d, nullLR) {
+  start.par = c(.1, 0) # starting parameter values for the optimization
   ## 1) Find tau, When kappa = 0
   Exp.opt = GenSA(par = start.par[1], fn = LL.Exp, lower = 0.000001, upper = 100, d = d)
   Exp.opt.tau = Exp.opt$par
@@ -114,12 +118,6 @@ calcNullDist <- function(B, X) {
   }
   return(LR.null.dist)
 }
-LR.null.dist <- calcNullDist(10000, X)
-
-
-library(future)
-library(doParallel)
-library(foreach)
 
 cl <- makeCluster(future::availableCores())
 registerDoParallel(cl)
@@ -129,14 +127,17 @@ bootBeisel_nar_nonpool <- data.frame(tau = numeric(B),
                              kappa = numeric(B),
                              LRT = numeric(B),
                              p.value = numeric(B))
-mutExp_ben_seeds <- unique(mutExp_ben$seed)
 
+# Subset by replicate
+mutExp_ben_seeds <- unique(mutExp_ben$seed)
 bootBeisel_nar_nonpool <- foreach(b=1:B, .combine = "rbind") %dopar% {
   require(GenSA)
   # Sample from this replicate's data
   sbst <- mutExp_ben[mutExp_ben$seed == mutExp_ben_seeds[b],]
   samples_n <- min(nrow(sbst), 100)
   d <- sampleFitnessEffects(sbst$s, samples_n)
+  # Get the null distribution for this d
+  LR.null.dist <- calcNullDist(samples_n, X)
   bootBeisel_nar_nonpool[b, ] <- bootBeisel(d, LR.null.dist)
 }
 
@@ -164,6 +165,8 @@ bootBeisel_add_nonpool <- foreach(b=1:B, .combine = "rbind") %dopar% {
   sbst <- mutExp_add_ben[mutExp_add_ben$seed == mutExp_add_ben_seeds[b],]
   samples_n <- min(nrow(sbst), 100)
   d <- sampleFitnessEffects(sbst$s, samples_n)
+  # Get the null distribution for this d
+  LR.null.dist <- calcNullDist(samples_n, X)
   bootBeisel_add_nonpool[b, ] <- bootBeisel(d, LR.null.dist)
 }
 stopCluster(cl)
@@ -173,7 +176,7 @@ colnames(bootBeisel_add_nonpool) <- c("tau", "kappa", "LRT", "p.value")
 
 write.csv(bootBeisel_add_nonpool, "bootBeisel_add_nonpool.csv", row.names = F)
 
-# calculate mean and CI of bootstrap
+# Calculate mean and CI of bootstrap
 print("bootstrapped GPD fit mean parameters")
 print(mean(bootBeisel_nar_nonpool$kappa))
 print(CI(bootBeisel_nar_nonpool$kappa))
@@ -201,23 +204,70 @@ bootBeisel_add_nonpool <- read.csv("bootBeisel_add_nonpool.csv")
 bootBeisel_nar_nonpool <- read.csv("bootBeisel_nar_nonpool.csv")
 
 # percent in each bin
-bootBeisel_add_nonpool %>% 
+print(bootBeisel_add_nonpool %>% 
   summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
             percWeibull = sum(kappa <= -1)/n(),
-            percFrechet = sum(kappa >= 1)/n())
+            percFrechet = sum(kappa >= 1)/n()))
 
-bootBeisel_nar_nonpool %>% 
+print(bootBeisel_nar_nonpool %>% 
   summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
             percWeibull = sum(kappa <= -1)/n(),
-            percFrechet = sum(kappa >= 1)/n())
+            percFrechet = sum(kappa >= 1)/n()))
 
-bootBeisel_add %>% 
+print(bootBeisel_add %>% 
   summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
             percWeibull = sum(kappa <= -1)/n(),
-            percFrechet = sum(kappa >= 1)/n())
+            percFrechet = sum(kappa >= 1)/n()))
 
-bootBeisel_nar %>% 
+print(bootBeisel_nar %>% 
   summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
             percWeibull = sum(kappa <= -1)/n(),
-            percFrechet = sum(kappa >= 1)/n())
+            percFrechet = sum(kappa >= 1)/n()))
 
+# Plot each fit overlaid on top of each other
+bootBeisel_add$model <- "Additive"
+bootBeisel_add$pooled <- "Pooled"
+bootBeisel_nar$model <- "Network"
+bootBeisel_nar$pooled <- "Pooled"
+bootBeisel_add_nonpool$model <- "Additive"
+bootBeisel_add_nonpool$pooled <- "Non-pooled"
+bootBeisel_nar_nonpool$model <- "Network"
+bootBeisel_nar_nonpool$pooled <- "Non-pooled"
+
+d_bootBeisel <- rbind(bootBeisel_add, bootBeisel_nar, 
+                    bootBeisel_add_nonpool, bootBeisel_nar_nonpool)
+
+d_gpd <- data.frame(
+  tau = rep(d_bootBeisel$tau, each = 1000),
+  kappa = rep(d_bootBeisel$kappa, each = 1000),
+  p = rep(d_bootBeisel$p.value, each = 1000),
+  model = rep(d_bootBeisel$model, each = 1000),
+  id = rep(row.names(d_bootBeisel), each = 1000),
+  pooled = rep(d_bootBeisel$pooled, each = 1000),
+  sample_index = rep(1:1000, times = nrow(d_bootBeisel))
+)
+d_gpd$val <- devd(rep(seq(0, 0.2, length.out = 1000), times = nrow(d_bootBeisel)), 
+                  loc = 0, 
+                  scale = d_gpd$tau, 
+                  shape = d_gpd$kappa, type = "GP")
+d_gpd$density_key <- rep(seq(0, 0.2, length.out = 1000), times = nrow(d_bootBeisel))
+
+# Subset: 5 examples from each group
+d_gpd_sbst <- d_gpd %>%
+  group_by(model, pooled) %>%
+  filter(id %in% sample(unique(d_gpd[d_gpd$model == cur_group()$model & 
+                                       d_gpd$pooled == cur_group()$pooled,]$id), 5))
+
+ggplot(d_gpd_sbst,
+       aes(x = density_key, y = val, fill = model, group = id)) +
+  facet_grid(.~pooled) +
+  geom_area(alpha = 0.4, position = "identity") +
+  geom_line() +
+  scale_fill_paletteer_d("ggsci::nrc_npg", labels = c("Additive", "Network")) +
+  labs(x = "s", y = "Density", fill = "Model") + 
+  theme_bw() +
+  theme(text = element_text(size = 16), legend.position = "bottom",
+        legend.key = element_rect(colour = "black")) -> plt_beisel_pool
+plt_beisel_pool
+ggsave("sfig_beisel_pool.png", plt_beisel_pool, width = 8, height = 4, 
+       device = png, bg = "white")
