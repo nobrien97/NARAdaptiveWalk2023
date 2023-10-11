@@ -121,81 +121,128 @@ calcNullDist <- function(B, X) {
 
 cl <- makeCluster(future::availableCores())
 registerDoParallel(cl)
-# Change B to be number of replicates
-B = length(unique(mutExp_ben$seed))
-bootBeisel_nar_nonpool <- data.frame(tau = numeric(B),
-                             kappa = numeric(B),
-                             LRT = numeric(B),
-                             p.value = numeric(B))
+
+# Separate between adaptive steps as well
+mutExp_ben$seed_rank <- interaction(mutExp_ben$seed, mutExp_ben$rank)
+
+# Change B to be number of replicates/adaptive steps
+B = length(unique(mutExp_ben$seed_rank))
+bootBeisel_nar_nonpool <- data.frame(
+  seed_rank = character(B),
+  tau = numeric(B),
+  kappa = numeric(B),
+  LRT = numeric(B),
+  p.value = numeric(B)
+)
 
 # Subset by replicate
-mutExp_ben_seeds <- unique(mutExp_ben$seed)
+mutExp_ben_seed_ranks <- unique(mutExp_ben$seed_rank)
 bootBeisel_nar_nonpool <- foreach(b=1:B, .combine = "rbind") %dopar% {
   require(GenSA)
   # Sample from this replicate's data
-  sbst <- mutExp_ben[mutExp_ben$seed == mutExp_ben_seeds[b],]
-  samples_n <- min(nrow(sbst), 100)
+  sbst <- mutExp_ben[mutExp_ben$seed_rank == mutExp_ben_seed_ranks[b],]
+  # How many samples to use 
+  # (sampleFitnessEffects removes the smallest samples, 
+  # so we remove those from the count)
+  samples_n <- min(nrow(sbst)-length(sbst$s[sbst$s == min(sbst$s)]), 100)
   d <- sampleFitnessEffects(sbst$s, samples_n)
   # Get the null distribution for this d
   LR.null.dist <- calcNullDist(samples_n, X)
-  bootBeisel_nar_nonpool[b, ] <- bootBeisel(d, LR.null.dist)
+  bootBeisel_nar_nonpool[b,] <- c(mutExp_ben_seed_ranks[b], bootBeisel(d, LR.null.dist))
 }
 
 bootBeisel_nar_nonpool <- as.data.frame(bootBeisel_nar_nonpool)
-colnames(bootBeisel_nar_nonpool) <- c("tau", "kappa", "LRT", "p.value")
+colnames(bootBeisel_nar_nonpool) <- c("seed_rank", "tau", "kappa", "LRT", "p.value")
 write.csv(bootBeisel_nar_nonpool, "bootBeisel_nar_nonpool.csv", row.names = F)
-
-
-bootBeisel_add_nonpool <- data.frame(tau = numeric(B),
-                             kappa = numeric(B),
-                             LRT = numeric(B),
-                             p.value = numeric(B))
 
 
 # additive
 X <- sampleFitnessEffects(mutExp_add_ben$s, 1000)
-LR.null.dist <- calcNullDist(10000, X)
-B = length(unique(mutExp_add_ben$seed))
+LR.null.dist <- calcNullDist(1000, X)
 
-#Run in parallel
-mutExp_add_ben_seeds <- unique(mutExp_add_ben$seed)
+mutExp_add_ben$seed_rank <- interaction(mutExp_add_ben$seed, mutExp_add_ben$rank)
+B = length(unique(mutExp_add_ben$seed_rank))
+
+bootBeisel_add_nonpool <- data.frame(
+  seed_rank = character(B),
+  tau = numeric(B),
+  kappa = numeric(B),
+  LRT = numeric(B),
+  p.value = numeric(B)
+)
+
+mutExp_add_ben_seed_ranks <- unique(mutExp_add_ben$seed_rank)
 
 bootBeisel_add_nonpool <- foreach(b=1:B, .combine = "rbind") %dopar% {
   require(GenSA)
-  sbst <- mutExp_add_ben[mutExp_add_ben$seed == mutExp_add_ben_seeds[b],]
-  samples_n <- min(nrow(sbst), 100)
+  sbst <- mutExp_add_ben[mutExp_add_ben$seed_rank == mutExp_add_ben_seed_ranks[b],]
+  samples_n <- min(nrow(sbst)-length(sbst$s[sbst$s == min(sbst$s)]), 100)
   d <- sampleFitnessEffects(sbst$s, samples_n)
   # Get the null distribution for this d
   LR.null.dist <- calcNullDist(samples_n, X)
-  bootBeisel_add_nonpool[b, ] <- bootBeisel(d, LR.null.dist)
+  bootBeisel_add_nonpool[b,] <- c(mutExp_add_ben_seed_ranks[b], bootBeisel(d, LR.null.dist))
 }
 stopCluster(cl)
 
 bootBeisel_add_nonpool <- as.data.frame(bootBeisel_add_nonpool)
-colnames(bootBeisel_add_nonpool) <- c("tau", "kappa", "LRT", "p.value")
+colnames(bootBeisel_add_nonpool) <- c("seed_rank", "tau", "kappa", "LRT", "p.value")
 
 write.csv(bootBeisel_add_nonpool, "bootBeisel_add_nonpool.csv", row.names = F)
 
+# Decipher seed_rank into seed and rank
+bootBeisel_add_nonpool %>%
+  mutate(seed_rank = levels(mutExp_add_ben_seed_ranks)[seed_rank]) %>%
+  separate_wider_delim(seed_rank, delim = ".", names = c("seed", "rank")) %>%
+  mutate(seed = as.factor(seed),
+         rankFactor = ifelse(rank > 2, "\\geq 3", as.character(rank))) -> bootBeisel_add_nonpool
+bootBeisel_add_nonpool$rankFactor <- factor(bootBeisel_add_nonpool$rankFactor, 
+                                            levels = c("0", "1", "2", "\\geq 3"))
+
+bootBeisel_nar_nonpool %>%
+  mutate(seed_rank = levels(mutExp_ben_seed_ranks)[seed_rank]) %>%
+  separate_wider_delim(seed_rank, delim = ".", names = c("seed", "rank")) %>%
+  mutate(seed = as.factor(seed),
+         rankFactor = ifelse(rank > 2, "\\geq 3", as.character(rank))) -> bootBeisel_nar_nonpool
+bootBeisel_nar_nonpool$rankFactor <- factor(bootBeisel_nar_nonpool$rankFactor, 
+                                  levels = c("0", "1", "2", "\\geq 3"))
+
 # Calculate mean and CI of bootstrap
 print("bootstrapped GPD fit mean parameters")
-print(mean(bootBeisel_nar_nonpool$kappa))
-print(CI(bootBeisel_nar_nonpool$kappa))
-print(mean(bootBeisel_nar_nonpool$p.value))
-print(CI(bootBeisel_nar_nonpool$p.value))
-print(mean(bootBeisel_nar_nonpool$LRT))
-print(CI(bootBeisel_nar_nonpool$LRT))
+print(bootBeisel_nar_nonpool %>%
+        drop_na() %>%
+        group_by(rankFactor) %>%
+        summarise(meanKappa = mean(kappa),
+                  CIKappa = CI(kappa),
+                  meanLRT = mean(LRT),
+                  CILRT = CI(LRT),
+                  mean.p = mean(p.value),
+                  CI.p = CI(p.value)))
 
-print(mean(bootBeisel_add_nonpool$kappa))
-print(CI(bootBeisel_add_nonpool$kappa))
-print(mean(bootBeisel_add_nonpool$p.value))
-print(CI(bootBeisel_add_nonpool$p.value))
-print(mean(bootBeisel_add_nonpool$LRT))
-print(CI(bootBeisel_add_nonpool$LRT))
+print(bootBeisel_add_nonpool %>%
+        drop_na() %>%
+        group_by(rankFactor) %>%
+        summarise(meanKappa = mean(kappa),
+                  CIKappa = CI(kappa),
+                  meanLRT = mean(LRT),
+                  CILRT = CI(LRT),
+                  mean.p = mean(p.value),
+                  CI.p = CI(p.value)))
 
-hist(bootBeisel_add_nonpool$kappa, breaks = 100)
-hist(bootBeisel_add$kappa, breaks = 100)
-hist(bootBeisel_nar_nonpool$kappa, breaks = 100)
-hist(bootBeisel_nar$kappa, breaks = 100)
+ggplot(bootBeisel_add_nonpool %>% filter(kappa > -20), 
+       aes(x = kappa, fill = rankFactor)) +
+  geom_histogram(alpha = 0.4, bins = 100)
+
+ggplot(bootBeisel_nar_nonpool %>% filter(kappa > -20), 
+       aes(x = kappa, fill = rankFactor)) +
+  geom_histogram(alpha = 0.4, bins = 100)
+
+ggplot(bootBeisel_add, 
+       aes(x = kappa)) +
+  geom_histogram(bins = 100)
+
+ggplot(bootBeisel_nar, 
+       aes(x = kappa)) +
+  geom_histogram(bins = 100)
 
 ##############################################################################
 # End Lebeuf-Taylor et al. derived code
