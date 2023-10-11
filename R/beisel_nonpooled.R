@@ -148,11 +148,11 @@ bootBeisel_nar_nonpool <- foreach(b=1:B, .combine = "rbind") %dopar% {
   d <- sampleFitnessEffects(sbst$s, samples_n)
   # Get the null distribution for this d
   LR.null.dist <- calcNullDist(samples_n, X)
-  bootBeisel_nar_nonpool[b,] <- c(mutExp_ben_seed_ranks[b], bootBeisel(d, LR.null.dist))
+  bootBeisel_nar_nonpool[b,] <- c(mutExp_ben_seed_ranks[b], samples_n, bootBeisel(d, LR.null.dist))
 }
 
 bootBeisel_nar_nonpool <- as.data.frame(bootBeisel_nar_nonpool)
-colnames(bootBeisel_nar_nonpool) <- c("seed_rank", "tau", "kappa", "LRT", "p.value")
+colnames(bootBeisel_nar_nonpool) <- c("seed_rank", "n_muts", "tau", "kappa", "LRT", "p.value")
 write.csv(bootBeisel_nar_nonpool, "bootBeisel_nar_nonpool.csv", row.names = F)
 
 
@@ -180,14 +180,20 @@ bootBeisel_add_nonpool <- foreach(b=1:B, .combine = "rbind") %dopar% {
   d <- sampleFitnessEffects(sbst$s, samples_n)
   # Get the null distribution for this d
   LR.null.dist <- calcNullDist(samples_n, X)
-  bootBeisel_add_nonpool[b,] <- c(mutExp_add_ben_seed_ranks[b], bootBeisel(d, LR.null.dist))
+  bootBeisel_add_nonpool[b,] <- c(mutExp_add_ben_seed_ranks[b], samples_n, bootBeisel(d, LR.null.dist))
 }
 stopCluster(cl)
 
 bootBeisel_add_nonpool <- as.data.frame(bootBeisel_add_nonpool)
-colnames(bootBeisel_add_nonpool) <- c("seed_rank", "tau", "kappa", "LRT", "p.value")
+colnames(bootBeisel_add_nonpool) <- c("seed_rank", "n_muts", "tau", "kappa", "LRT", "p.value")
 
 write.csv(bootBeisel_add_nonpool, "bootBeisel_add_nonpool.csv", row.names = F)
+
+# Checkpoint so we can go back to the seed if need be
+seed <- sample(1:.Machine$integer.max, 1)
+# seed = 411307426
+#set.seed(seed)
+set.seed(411307426)
 
 # Decipher seed_rank into seed and rank
 bootBeisel_add_nonpool %>%
@@ -210,8 +216,11 @@ bootBeisel_nar_nonpool$rankFactor <- factor(bootBeisel_nar_nonpool$rankFactor,
 print("bootstrapped GPD fit mean parameters")
 print(bootBeisel_nar_nonpool %>%
         drop_na() %>%
+        filter(n_muts >= 10) %>% # estimates unreliable when n_muts < 10
         group_by(rankFactor) %>%
-        summarise(meanKappa = mean(kappa),
+        summarise(n = n(), 
+                  meanNMuts = mean(n_muts),
+                  meanKappa = mean(kappa),
                   CIKappa = CI(kappa),
                   meanLRT = mean(LRT),
                   CILRT = CI(LRT),
@@ -220,8 +229,11 @@ print(bootBeisel_nar_nonpool %>%
 
 print(bootBeisel_add_nonpool %>%
         drop_na() %>%
+        filter(n_muts >= 10) %>% # estimates unreliable when n_muts < 10
         group_by(rankFactor) %>%
-        summarise(meanKappa = mean(kappa),
+        summarise(n = n(),
+                  meanNMuts = mean(n_muts),
+                  meanKappa = mean(kappa),
                   CIKappa = CI(kappa),
                   meanLRT = mean(LRT),
                   CILRT = CI(LRT),
@@ -247,16 +259,16 @@ ggplot(bootBeisel_nar,
 ##############################################################################
 # End Lebeuf-Taylor et al. derived code
 ##############################################################################
-bootBeisel_add_nonpool <- read.csv("bootBeisel_add_nonpool.csv")
-bootBeisel_nar_nonpool <- read.csv("bootBeisel_nar_nonpool.csv")
+#bootBeisel_add_nonpool <- read.csv("bootBeisel_add_nonpool.csv")
+#bootBeisel_nar_nonpool <- read.csv("bootBeisel_nar_nonpool.csv")
 
 # percent in each bin
-print(bootBeisel_add_nonpool %>% 
+print(bootBeisel_add_nonpool %>% filter(n_muts >= 10) %>% group_by(rankFactor) %>%
   summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
             percWeibull = sum(kappa <= -1)/n(),
             percFrechet = sum(kappa >= 1)/n()))
 
-print(bootBeisel_nar_nonpool %>% 
+print(bootBeisel_nar_nonpool %>% filter(n_muts >= 10) %>% group_by(rankFactor) %>%
   summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
             percWeibull = sum(kappa <= -1)/n(),
             percFrechet = sum(kappa >= 1)/n()))
@@ -281,8 +293,22 @@ bootBeisel_add_nonpool$pooled <- "Non-pooled"
 bootBeisel_nar_nonpool$model <- "Network"
 bootBeisel_nar_nonpool$pooled <- "Non-pooled"
 
+bootBeisel_add$seed <- "None"
+bootBeisel_add$rank <- "None"
+bootBeisel_add$rankFactor <- "None"
+bootBeisel_nar$seed <- "None"
+bootBeisel_nar$rank <- "None"
+bootBeisel_nar$rankFactor <- "None"
+
+bootBeisel_add$n_muts <- 1000
+bootBeisel_nar$n_muts <- 1000
+
 d_bootBeisel <- rbind(bootBeisel_add, bootBeisel_nar, 
                     bootBeisel_add_nonpool, bootBeisel_nar_nonpool)
+
+# Remove poor quality fits
+d_bootBeisel <- d_bootBeisel %>% 
+  filter(n_muts >= 10)
 
 d_gpd <- data.frame(
   tau = rep(d_bootBeisel$tau, each = 1000),
@@ -290,31 +316,67 @@ d_gpd <- data.frame(
   p = rep(d_bootBeisel$p.value, each = 1000),
   model = rep(d_bootBeisel$model, each = 1000),
   id = rep(row.names(d_bootBeisel), each = 1000),
+  rankFactor = rep(d_bootBeisel$rankFactor, each = 1000),
   pooled = rep(d_bootBeisel$pooled, each = 1000),
   sample_index = rep(1:1000, times = nrow(d_bootBeisel))
 )
+
 d_gpd$val <- devd(rep(seq(0, 0.2, length.out = 1000), times = nrow(d_bootBeisel)), 
                   loc = 0, 
                   scale = d_gpd$tau, 
                   shape = d_gpd$kappa, type = "GP")
 d_gpd$density_key <- rep(seq(0, 0.2, length.out = 1000), times = nrow(d_bootBeisel))
 
-# Subset: 5 examples from each group
-d_gpd_sbst <- d_gpd %>%
-  group_by(model, pooled) %>%
-  filter(id %in% sample(unique(d_gpd[d_gpd$model == cur_group()$model & 
-                                       d_gpd$pooled == cur_group()$pooled,]$id), 5))
+d_gpd$rankFactor <- factor(d_gpd$rankFactor, levels = c("None", "0", "1", "2", "\\geq 3"))
 
-ggplot(d_gpd_sbst,
+# Subset: 5 examples from each group
+d_gpd_sbst <- d_gpd %>% drop_na(p) %>%
+  group_by(model, pooled, rankFactor) %>%
+  filter(id %in% sample(unique(d_gpd[d_gpd$model == cur_group()$model & 
+                                       d_gpd$pooled == cur_group()$pooled &
+                                       d_gpd$rankFactor == cur_group()$rankFactor,]$id), min(n(), 5)))
+
+appender <- function(input) {
+  TeX(paste0("$", input, "$"))
+}
+
+ggplot(d_gpd_sbst %>% filter(rankFactor != "None"),
        aes(x = density_key, y = val, fill = model, group = id)) +
-  facet_grid(.~pooled) +
+  facet_grid(rankFactor~pooled, scales = "free", 
+             labeller = as_labeller(appender, default = label_parsed)) +
+  geom_area(alpha = 0.4, position = "identity") +
+  geom_line() +
+  scale_fill_paletteer_d("ggsci::nrc_npg", labels = c("Additive", "Network")) +
+  scale_y_continuous(sec.axis = sec_axis(~ ., name = "Adaptive step", 
+                                         breaks = NULL, labels = NULL)) +
+  labs(x = "s", y = "Density", fill = "Model") + 
+  theme_bw() +
+  theme(text = element_text(size = 16), legend.position = "bottom",
+        legend.key = element_rect(colour = "black")) -> plt_beisel_nonpool
+plt_beisel_nonpool
+
+ggplot(d_gpd_sbst %>% filter(rankFactor == "None"),
+       aes(x = density_key, y = val, fill = model, group = id)) +
+  facet_grid(.~pooled, scales = "free") +
   geom_area(alpha = 0.4, position = "identity") +
   geom_line() +
   scale_fill_paletteer_d("ggsci::nrc_npg", labels = c("Additive", "Network")) +
   labs(x = "s", y = "Density", fill = "Model") + 
   theme_bw() +
-  theme(text = element_text(size = 16), legend.position = "bottom",
+  theme(text = element_text(size = 16), legend.position = "none",
         legend.key = element_rect(colour = "black")) -> plt_beisel_pool
 plt_beisel_pool
-ggsave("sfig_beisel_pool.png", plt_beisel_pool, width = 8, height = 4, 
+
+leg <- get_legend(plt_beisel_nonpool)
+
+plt_beisel_poolcomp <- plot_grid(plt_beisel_pool,
+          plt_beisel_nonpool + theme(legend.position = "none"),
+          ncol = 2, labels = "AUTO",
+          rel_widths = c(0.8, 1))
+
+plt_beisel_poolcomp <- plot_grid(plt_beisel_poolcomp,
+                                 leg,
+                                 nrow = 2, rel_heights = c(1, 0.1))
+plt_beisel_poolcomp
+ggsave("sfig_beisel_pool.png", plt_beisel_poolcomp, width = 10, height = 5, 
        device = png, bg = "white")
