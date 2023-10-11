@@ -284,7 +284,7 @@ print(CI(bootBeisel_add$LRT))
 
 # Now run a similar analysis but instead of sampling from a joint distribution,
 # sample individually within each simulation.
-source("beisel_nonpooled.R")
+source("./R/beisel_nonpooled.R")
 ##############################################################################
 # End Lebeuf-Taylor et al. derived code
 ##############################################################################
