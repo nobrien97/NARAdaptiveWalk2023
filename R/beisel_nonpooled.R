@@ -310,6 +310,40 @@ d_bootBeisel <- rbind(bootBeisel_add, bootBeisel_nar,
 d_bootBeisel <- d_bootBeisel %>% 
   filter(n_muts >= 10)
 
+# Plot change in mean kappa over time
+ggplot(d_bootBeisel %>% filter(pooled == "Non-pooled", 
+                               kappa >= outliers::outlier((d_bootBeisel %>% 
+                                                             filter(pooled == "Non-pooled"))$kappa)) %>%
+         mutate(rankFactor = factor(rankFactor, levels = c("0", "1", "2", "\\geq 3"))) %>%
+         group_by(model, rankFactor) %>%
+         summarise(meanKappa = mean(kappa),
+                   CIKappa = CI(kappa)),
+       aes(x = rankFactor, y = meanKappa, colour = model, group = model)) +
+  geom_line() +
+  geom_point(size = 2) +
+  scale_x_discrete(labels = parse(text=TeX(step_labs))) +
+  geom_errorbar(aes(ymin = meanKappa - CIKappa, ymax = meanKappa + CIKappa), width = 0.1) +
+  labs(x = "Adaptive step", y = TeX("Mean shape parameter ($\\bar{\\kappa}$)"), colour = "Model") +
+  scale_colour_paletteer_d("ggsci::nrc_npg") +
+  theme_bw() +
+  theme(text = element_text(size = 16), legend.position = "bottom") -> plt_meankappa
+ggsave("sfig_meankappa.png", plt_meankappa, device = png, width = 8.5, height = 7)
+
+# statistical test for non-pooled data how does it change over adaptive steps/models?
+d_bootBeisel$rankFactor <- factor(d_bootBeisel$rankFactor, levels = c("None", "0", "1", "2", "\\geq 3"))
+
+aov_kappa <- lm(kappa ~ model * rankFactor, 
+            data = d_bootBeisel %>% filter(pooled == "Non-pooled", 
+                                           kappa >= outliers::outlier((d_bootBeisel %>% filter(pooled == "Non-pooled"))$kappa)))
+rlm_kappa <- MASS::rlm(kappa ~ model * rankFactor,
+           data = d_bootBeisel %>% filter(pooled == "Non-pooled", 
+                                          kappa >= outliers::outlier((d_bootBeisel %>% filter(pooled == "Non-pooled"))$kappa)) %>%
+             mutate(rankFactor = factor(rankFactor, levels = c("0", "1", "2", "\\geq 3"))))
+summary(aov_kappa)
+summary(rlm_kappa)
+plot(rlm_kappa)
+
+
 d_gpd <- data.frame(
   tau = rep(d_bootBeisel$tau, each = 1000),
   kappa = rep(d_bootBeisel$kappa, each = 1000),
