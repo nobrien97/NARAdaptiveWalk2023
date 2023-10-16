@@ -1,6 +1,8 @@
 library(future)
 library(doParallel)
 library(foreach)
+library(extRemes)
+
 # Test % of K in >0, <0 and ~ 0 groups
 ###############################################################
 # This code is modified from Lebeuf-Taylor et al. 2019 Fig. 1 source code (doi: 10.7554/eLife.45952)
