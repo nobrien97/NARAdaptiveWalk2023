@@ -49,21 +49,21 @@ fig1
 ggsave("NARgraph.png", fig1, width = 8, height = 4, device = png, bg = "white")
 
 # Fig. Extreme value dist - gumbel vs frechet vs weibull
-d_evd <- data.frame(index = seq(-4, 4, length = 1000),
-                    Gamma = devd(seq(-4, 4, length = 1000), shape = 0),
-                    Weibull = devd(seq(-4, 4, length = 1000), shape = -1),
-                    Frechet = devd(seq(-4, 4, length = 1000), shape = 1))
+d_evd <- data.frame(index = seq(0, 4, length = 1000),
+                    Gumbel = devd(seq(0, 4, length = 1000), shape = 0, type = "GP"),
+                    Weibull = devd(seq(0, 4, length = 1000), shape = -1, type = "GP"),
+                    Frechet = devd(seq(0, 4, length = 1000), shape = 1, type = "GP"))
 
 pivot_longer(d_evd, 
-             cols = c("Gamma", "Weibull", "Frechet"), values_to = "val",
+             cols = c("Gumbel", "Weibull", "Frechet"), values_to = "val",
              names_to = "model") -> d_evd
 
 ggplot(d_evd %>% 
-         mutate(model = factor(model, levels = c("Gamma", "Weibull", "Frechet"))), 
+         mutate(model = factor(model, levels = c("Gumbel", "Weibull", "Frechet"))), 
        aes(x = index, y = val, linetype = model)) +
   geom_line() +
   labs(y = "Density", x = "Extreme value", linetype = "Domain") +
-  scale_linetype_discrete(labels = c("Gamma", "Weibull", "Fréchet")) +
+  scale_linetype_discrete(labels = c("Gumbel", "Weibull", "Fréchet")) +
   theme_bw() + 
   theme(text = element_text(size = 16), legend.position = "bottom") -> plt_gpd
 plt_gpd
