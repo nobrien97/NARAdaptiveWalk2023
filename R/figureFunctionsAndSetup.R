@@ -24,16 +24,16 @@ plotaZbZLandscape <- function(minVal, maxVal) {
   
   suppressWarnings(
     ggplot(d_landscape %>% mutate(aZbZ = aZ/bZ), 
-           aes(x = aZ, y = bZ, fill = fitness)) +
-      geom_tile() +
+           aes(x = aZ, y = bZ, colour = fitness)) +
+      geom_point() +
       #geom_abline(slope = 1/1.27) +
       # geom_point(data = d_landscape %>% mutate(aZbZ = aZ/bZ) 
       #            %>% filter(aZbZ > 1.25, aZbZ < 1.35), size = 0.1, shape = 4) +
-      scale_fill_gradientn(colors = c(cc[1], cc), 
-                           limits = c(minFit, 1),
-                           values = wValues, na.value = cc[1]) +
+      scale_colour_gradientn(colors = c(cc[1], cc), 
+                             limits = c(minFit, 1),
+                             values = wValues, na.value = cc[1]) +
       labs(x = TeX("$\\alpha_Z$"), y = TeX("$\\beta_Z$"), 
-           fill = "Fitness (w)", size = TeX("$\\frac{\\alpha_Z}{\\beta_Z} ratio$")) +
+           colour = "Fitness (w)") +
       theme_bw() + 
       theme(legend.position = "bottom", text = element_text(size = 14)) +
       guides(
