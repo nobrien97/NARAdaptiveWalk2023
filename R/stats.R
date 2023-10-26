@@ -15,6 +15,11 @@ print(d_qg %>% group_by(modelindex) %>%
             pAdapted = mean(isAdapted),
             CIAdapted = CI(isAdapted)))
 
+print(d_qg %>% group_by(modelindex, isAdapted) %>%
+        filter(gen == 49500) %>%
+        summarise(n()))
+        
+
 # Fisher test - number of pops adapted
 print(fisher.test(table((d_qg %>% distinct(seed, modelindex, .keep_all = T))$modelindex, 
                   (d_qg %>% distinct(seed, modelindex, .keep_all = T))$isAdapted)))
@@ -248,7 +253,6 @@ bootBeisel_add <- data.frame(tau = numeric(B),
                              LRT = numeric(B),
                              p.value = numeric(B))
 
-
 # additive
 X <- sampleFitnessEffects(mutExp_add_ben$s, 1000)
 LR.null.dist <- calcNullDist(1000, X)
@@ -281,6 +285,29 @@ print(mean(bootBeisel_add$p.value))
 print(CI(bootBeisel_add$p.value))
 print(mean(bootBeisel_add$LRT))
 print(CI(bootBeisel_add$LRT))
+
+bootBeisel_nar <- read.csv("bootBeisel_nar.csv")
+bootBeisel_add <- read.csv("bootBeisel_add.csv")
+
+# Combine p values with Fisher's method
+fisherMethod <- function(p, returnStat = F) {
+  # calculate chi for vector p
+  X <- -2*sum(log(p))
+  if (!returnStat)
+    return(1-pchisq(X, 2*length(p), lower.tail = T))
+  return(paste(X, "df =", 2*length(p)))
+}
+
+print(bootBeisel_add %>%
+  mutate(p.value = ifelse(p.value == 0, p.value + 1e-4, p.value)) %>% # Since we did 10000 iterations per model, the minimum p-value is actually 0.0001
+  summarise(fisherP = fisherMethod(p.value),
+            fisherX = fisherMethod(p.value, T)))
+
+print(bootBeisel_nar %>%
+  mutate(p.value = ifelse(p.value == 0, p.value + 1e-4, p.value)) %>% # Since we did 10000 iterations per model, the minimum p-value is actually 0.0001
+  summarise(fisherP = fisherMethod(p.value),
+            fisherX = fisherMethod(p.value, T)))
+
 
 # Now run a similar analysis but instead of sampling from a joint distribution,
 # sample individually within each simulation.

@@ -7,8 +7,6 @@
 # NarAdaptiveWalk2023 repo and where you saved the dataset
 repoPath <- "/path/to/NARAdaptiveWalk2023"
 dataPath <- "/path/to/data/"
-repoPath <- "/mnt/c/GitHub/NARAdaptiveWalk2023/"
-dataPath <- "/mnt/d/SLiMTests/tests/fixedK/moreReps/"
 setwd(repoPath)
 
 # Load functions

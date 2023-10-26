@@ -55,7 +55,6 @@ LL.GPD <- function(par, d){ # equations from Beisel et al 2007
   return(-LL)
 }
 
-
 ## Special case kappa=0 (exponential distribution)
 LL.Exp <- function(par, d){ # equations from Beisel et al 2007
   # X is the adjusted selection coefficients, i.e. the data
@@ -285,6 +284,19 @@ print(bootBeisel_nar %>%
             percWeibull = sum(kappa <= -1)/n(),
             percFrechet = sum(kappa >= 1)/n()))
 
+# Combine p-values with Tippett's method
+print(bootBeisel_add_nonpool %>% filter(n_muts >= 10) %>%
+  mutate(p.value = ifelse(p.value == 0, p.value + 1e-3, p.value)) %>% # Since we did 1000 iterations per model, the minimum p-value is actually 0.001
+  group_by(rankFactor) %>%
+  summarise(fisherP = fisherMethod(p.value),
+            fisherX = fisherMethod(p.value, T)))
+  
+print(bootBeisel_nar_nonpool %>% filter(n_muts >= 10) %>%
+  mutate(p.value = ifelse(p.value == 0, p.value + 1e-3, p.value)) %>% # Since we did 1000 iterations per model, the minimum p-value is actually 0.001
+  group_by(rankFactor) %>%
+  summarise(fisherP = fisherMethod(p.value),
+            fisherX = fisherMethod(p.value, T)))
+
 # Plot each fit overlaid on top of each other
 bootBeisel_add$model <- "Additive"
 bootBeisel_add$pooled <- "Pooled"
@@ -330,21 +342,7 @@ ggplot(d_bootBeisel %>% filter(pooled == "Non-pooled",
   theme_bw() +
   theme(text = element_text(size = 16), legend.position = "bottom") -> plt_meankappa
 ggsave("sfig_meankappa.png", plt_meankappa, device = png, width = 8.5, height = 7)
-
-# statistical test for non-pooled data how does it change over adaptive steps/models?
-d_bootBeisel$rankFactor <- factor(d_bootBeisel$rankFactor, levels = c("None", "0", "1", "2", "\\geq 3"))
-
-aov_kappa <- lm(kappa ~ model * rankFactor, 
-            data = d_bootBeisel %>% filter(pooled == "Non-pooled", 
-                                           kappa >= outliers::outlier((d_bootBeisel %>% filter(pooled == "Non-pooled"))$kappa)))
-rlm_kappa <- MASS::rlm(kappa ~ model * rankFactor,
-           data = d_bootBeisel %>% filter(pooled == "Non-pooled", 
-                                          kappa >= outliers::outlier((d_bootBeisel %>% filter(pooled == "Non-pooled"))$kappa)) %>%
-             mutate(rankFactor = factor(rankFactor, levels = c("0", "1", "2", "\\geq 3"))))
-summary(aov_kappa)
-summary(rlm_kappa)
-plot(rlm_kappa)
-
+ggsave("sfig_meankappa.pdf", plt_meankappa, width = 8.5, height = 7)
 
 d_gpd <- data.frame(
   tau = rep(d_bootBeisel$tau, each = 1000),
@@ -385,7 +383,7 @@ ggplot(d_gpd_sbst %>% filter(rankFactor != "None"),
   scale_fill_paletteer_d("ggsci::nrc_npg", labels = c("Additive", "Network")) +
   scale_y_continuous(sec.axis = sec_axis(~ ., name = "Adaptive step", 
                                          breaks = NULL, labels = NULL)) +
-  labs(x = "s", y = "Density", fill = "Model") + 
+  labs(x = "Fitness effect (s)", y = "Density", fill = "Model") + 
   theme_bw() +
   theme(text = element_text(size = 16), legend.position = "bottom",
         legend.key = element_rect(colour = "black")) -> plt_beisel_nonpool
@@ -397,7 +395,7 @@ ggplot(d_gpd_sbst %>% filter(rankFactor == "None"),
   geom_area(alpha = 0.4, position = "identity") +
   geom_line() +
   scale_fill_paletteer_d("ggsci::nrc_npg", labels = c("Additive", "Network")) +
-  labs(x = "s", y = "Density", fill = "Model") + 
+  labs(x = "Fitness effect (s)", y = "Density", fill = "Model") + 
   theme_bw() +
   theme(text = element_text(size = 16), legend.position = "none",
         legend.key = element_rect(colour = "black")) -> plt_beisel_pool
@@ -416,3 +414,6 @@ plt_beisel_poolcomp <- plot_grid(plt_beisel_poolcomp,
 plt_beisel_poolcomp
 ggsave("sfig_beisel_pool.png", plt_beisel_poolcomp, width = 10, height = 5, 
        device = png, bg = "white")
+ggsave("sfig_beisel_pool.pdf", plt_beisel_poolcomp, width = 10, height = 5, 
+       bg = "white")
+
