@@ -2,7 +2,7 @@
 
 ## Overview
 This repository contains scripts used to produce the results and figures in [O'Brien et al. 2023](www.google.com).
-To run the scripts, you will need to download the data from [Dryad](www.google.com) and follow the steps below.
+To run the scripts, you will need to download the data from https://doi.org/10.48610/f3850b0 and follow the steps below.
 
 ## Requirements
 You will need at least 8GB of RAM and a Linux operating system to run the analysis.
