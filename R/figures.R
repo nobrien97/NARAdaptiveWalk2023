@@ -47,6 +47,8 @@ fig1 <- plot_grid(plotNARgraph, plotZ, rel_widths = c(0.75, 1), labels = "AUTO",
 fig1
 
 ggsave("NARgraph.png", fig1, width = 8, height = 4, device = png, bg = "white")
+ggsave("NARgraph.pdf", fig1, width = 8, height = 4, bg = "white")
+
 
 # Fig. Extreme value dist - gumbel vs frechet vs weibull
 d_evd <- data.frame(index = seq(0, 4, length = 1000),
@@ -69,37 +71,7 @@ ggplot(d_evd %>%
 plt_gpd
 
 ggsave("fig_gpd.png", plt_gpd, device = png, bg = "white")
-
-# Supp Fig. Generalized Pareto - gumbel vs frechet vs weibull
-d_evd <- data.frame(index = seq(0.01, 8, length = 1000),
-                    Gamma = devd(seq(0.01, 8, length = 1000), shape = 0, type = "GP"),
-                    Weibull = devd(seq(0.01, 8, length = 1000), shape = -1, type = "GP"),
-                    Frechet = devd(seq(0.01, 8, length = 1000), shape = 1, type = "GP"))
-
-pivot_longer(d_evd, 
-             cols = c("Gamma", "Weibull", "Frechet"), values_to = "val",
-             names_to = "model") -> d_evd
-
-ggplot(d_evd %>% 
-         mutate(model = factor(model, levels = c("Gamma", "Weibull", "Frechet"))), 
-       aes(x = index, y = val, linetype = model)) +
-  geom_line() +
-  geom_vline(xintercept = 0, colour = "red") +
-  labs(y = "Density", x = "Fitness (w)", linetype = "Domain") +
-  scale_linetype_discrete(labels = c(TeX("Gamma ($\\kappa = 0$)"), 
-                                     TeX("Weibull ($\\kappa < 0$)"), 
-                                     TeX("Fréchet ($\\kappa > 0$)"))) +
-  theme_bw() + 
-  guides(linetype=guide_legend(nrow=3,byrow=TRUE)) +
-  theme(text = element_text(size = 16), legend.position = "bottom",
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) -> plt_gpd
-plt_gpd
-
-ggsave("fig_gpd_K.png", plt_gpd, device = png, bg = "white", width = 4, height = 4)
-
+ggsave("fig_gpd.pdf", plt_gpd, bg = "white")
 
 # phenomean and adaptive walk
 # A - phenomean ridgeline plot
@@ -142,6 +114,7 @@ plot_grid(plt_phenomean_dist + theme(legend.position = "none"),
 
 plot_grid(plt_traitevo, leg, nrow = 2, rel_heights = c(1, 0.1)) -> plt_traitevo
 ggsave("fig_traitevolution.png", plt_traitevo, width = 9.22, height = 6.39, device = png, bg = "white")
+ggsave("fig_traitevolution.pdf", plt_traitevo, width = 9.22, height = 6.39, bg = "white")
 
 
 # distribution of fixations and step size over time
@@ -172,6 +145,7 @@ plot_grid(plt_distfixed,
 
 plot_grid(plt_DFEfixations, leg, nrow = 2, rel_heights = c(1, 0.1)) -> plt_DFEfixations
 ggsave("fig_fixations.png", plt_DFEfixations, width = 9.22, height = 6.39, device = png, bg = "white")
+ggsave("fig_fixations.pdf", plt_DFEfixations, width = 9.22, height = 6.39, bg = "white")
 
 
 # space of possible mutations (mutation screen)
@@ -253,6 +227,7 @@ plot_grid(plt_mutationscreen, leg, nrow = 2, rel_heights = c(1, 0.1)) -> plt_mut
 plt_mutationscreen
 
 ggsave("fig_mutationscreen.png", plt_mutationscreen, width = 10, height = 6, device = png, bg = "white")
+ggsave("fig_mutationscreen.pdf", plt_mutationscreen, width = 10, height = 6, bg = "white")
 
 # Supp fig: mutation screen by mutation type
 ggplot(mutExp_combined %>% filter(model == "NAR", rank > 0), 
@@ -264,7 +239,8 @@ ggplot(mutExp_combined %>% filter(model == "NAR", rank > 0),
   theme_bw() +
   theme(text = element_text(size = 12), legend.position = "bottom") -> plt_effectsizemuttype
 plt_effectsizemuttype
-ggsave("sfig_mutationscreen_muttype.png", device = png, width = 6, height = 5)
+ggsave("sfig_mutationscreen_muttype.png", plt_effectsizemuttype, device = png, width = 6, height = 5)
+ggsave("sfig_mutationscreen_muttype.pdf", plt_effectsizemuttype, width = 6, height = 5)
 
 
 # fitness landscape and aZbZ ratio
@@ -305,6 +281,7 @@ plot_grid(plt_aZbZ_landscape + theme(legend.position = "none"),
 plot_grid(plt_fitnesslandscape, leg, nrow = 2, rel_heights = c(1, 0.1)) -> plt_fitnesslandscape
 plt_fitnesslandscape
 ggsave("fig_fitnessLandscape.png", plt_fitnesslandscape, width = 10, height = 8, device = png, bg = "white")
+ggsave("fig_fitnessLandscape.pdf", plt_fitnesslandscape, width = 10, height = 8, bg = "white")
 
 
 # supp fig - Phenotype fixed vs segregating effects
@@ -331,6 +308,7 @@ ggplot(d_fix_ranked_combined %>% filter(rank > 0),
 plt_segfixedcont
 
 ggsave("sfig_segfixedcont.png", plt_segfixedcont, device = png)
+ggsave("sfig_segfixedcont.pdf", plt_segfixedcont)
 
 
 # supp fig - Balancing selection example
@@ -347,8 +325,9 @@ ggplot(d_com_adapted %>% filter((modelindex == 1 & seed == 1448101263 & mutID ==
   scale_colour_paletteer_d("ggsci::nrc_npg") +
   labs(x = "Generations post-optimum shift", y = "Allele frequency", 
        colour = "Model") +
-  theme(text = element_text(size = 16), legend.position = "bottom")
-ggsave("sfig_balsel.png", device = png)
+  theme(text = element_text(size = 16), legend.position = "bottom") -> sfig_balsel
+ggsave("sfig_balsel.png", sfig_balsel, device = png)
+ggsave("sfig_balsel.pdf", sfig_balsel)
 
 # Supp fig: fitness effect difference in deleterious fixations
 ggplot(d_del_diffs %>%
@@ -383,6 +362,7 @@ plt_delfixed <- plot_grid(plt_delfixed,
                           rel_heights = c(1, 0.1))
 plt_delfixed
 ggsave("sfig_delfixations.png", plt_delfixed, device = png, bg = "white")
+ggsave("sfig_delfixations.pdf", plt_delfixed, bg = "white")
 
 # Supp fig: heterozygosity
 # should be 0 most of the time if we're under SSWM
@@ -402,6 +382,7 @@ ggplot(d_Ho_sum %>% mutate(gen = gen - 50000,
   theme(text = element_text(size = 16), legend.position = "bottom") -> plt_Ho
 plt_Ho
 ggsave("sfig_het.png", plt_Ho, device = png)
+ggsave("sfig_het.pdf", plt_Ho)
 
 
 # supp fig - adaptive step timing for populations not yet at the optimum
@@ -419,6 +400,7 @@ ggplot(d_fix_ranked_combined %>%
   theme(text = element_text(size = 16), legend.position = "bottom") -> plt_adaptivestepgen_dist
 plt_adaptivestepgen_dist
 ggsave("sfig_fixgendist.png", plt_adaptivestepgen_dist, device = png)
+ggsave("sfig_fixgendist.pdf", plt_adaptivestepgen_dist)
 
 # Supp fig: dist of beneficial fixations at each step - zoom in of Fig. 2B
 ggplot(d_fix_ranked_combined %>% filter(rank > 0), 
@@ -429,6 +411,7 @@ ggplot(d_fix_ranked_combined %>% filter(rank > 0),
   scale_fill_paletteer_d("ggsci::nrc_npg") +
   labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
   theme_bw() +
-  theme(text = element_text(size = 16), legend.position = "bottom")
-ggsave("sfig_driftbarrier.png", device = png)
+  theme(text = element_text(size = 16), legend.position = "bottom") -> sfig_driftbarrier
+ggsave("sfig_driftbarrier.png", sfig_driftbarrier, device = png)
+ggsave("sfig_driftbarrier.pdf", sfig_driftbarrier)
 
