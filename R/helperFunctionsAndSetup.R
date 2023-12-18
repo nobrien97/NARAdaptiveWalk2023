@@ -241,6 +241,73 @@ CalcNARPhenotypeEffects <- function(dat, isFixed = T, dat_fixed = dat) {
   return(dat)
 }
 
+## Calculate fitness effects in multiplicative populations
+CalcMultEffects <- function(dat, isFixed = T, dat_fixed = dat) {
+  # If we are calculating fitness for segregating sites, need to evaluate fitness
+  # vs the fixed effect background at the timepoint (i.e. all fixations at timepoint gen)
+  # Fixation effect is multiplied by 2 because diploid
+  # Sum effects across all loci in NAR models
+  dat_fixed <- dat_fixed %>% filter(modelindex == 2)
+  dat <- dat %>% 
+    group_by(gen, seed) %>%
+    mutate(fixEffectSum = 2 * sum(dat_fixed[dat_fixed$gen <= cur_group()$gen &
+                                              dat_fixed$seed == cur_group()$seed,]$value))
+  
+  # Transform to exp scale: multiplicative
+  dat$fixEffectSum <- exp(dat$fixEffectSum)
+  
+  if (isFixed) {
+    # For fixed comparisons:
+    # AA = 1+s; Aa = 1+hs; aa = 1
+    # AA = fixEffectSum
+    # Aa = fixEffectSum - value
+    # aa = fixEffectSum - 2 * value
+    Aa <- calcAddFitness(exp(log(dat$fixEffectSum) - dat$value), 2, 0.05)
+    AA <- calcAddFitness(dat$fixEffectSum, 2, 0.05)
+    aa <- calcAddFitness(exp(log(dat$fixEffectSum) - 2 * dat$value), 2, 0.05)
+    dat$AA_pheno <- dat$fixEffectSum
+    dat$Aa_pheno <- exp(log(dat$fixEffectSum) - dat$value)
+    dat$aa_pheno <- exp(log(dat$fixEffectSum) - 2 * dat$value)
+    dat$avFit <- Aa - aa
+    dat$avFit_AA <- AA - aa
+    dat$avFX <- dat$AA_pheno - dat$Aa_pheno
+    dat$avFX_AA <- dat$AA_pheno - dat$aa_pheno
+    dat$value_AA <- dat$value * 2
+    dat$wAA <- AA
+    dat$wAa <- Aa
+    dat$waa <- aa
+    dat$s <- AA - aa
+    return(dat)
+  }
+  
+  # For segregating comparisons:
+  # AA = 1+s; Aa = 1+hs; aa = 1
+  # AA = fixEffectSum + 2 * value
+  # Aa = fixEffectSum + value
+  # aa = fixEffectSum
+  # Get effect
+  Aa <- calcAddFitness(exp(log(dat$fixEffectSum) + dat$value), 2, 0.05)
+  AA <- calcAddFitness(exp(log(dat$fixEffectSum) + 2 * dat$value), 2, 0.05)
+  aa <- calcAddFitness(dat$fixEffectSum, 2, 0.05)
+  
+  dat$AA_pheno <- dat$fixEffectSum + 2 * dat$value
+  dat$Aa_pheno <- dat$fixEffectSum + dat$value
+  dat$aa_pheno <- dat$fixEffectSum
+  dat$avFit <- Aa - aa
+  dat$avFit_AA <- AA - aa
+  dat$avFX <- dat$AA_pheno - dat$Aa_pheno
+  dat$avFX_AA <- dat$AA_pheno - dat$aa_pheno
+  dat$value_AA <- dat$value * 2
+  dat$wAA <- AA
+  dat$wAa <- Aa
+  dat$waa <- aa
+  dat$s <- AA - aa
+  
+  return(dat)
+}
+
+
+
 
 # Rank the fixations in order of adaptive step (first step, second, etc.)
 RankFixations <- function(dat, isNAR, dat_burnInFX = dat) {

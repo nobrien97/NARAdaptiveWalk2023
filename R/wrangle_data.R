@@ -298,3 +298,42 @@ d_fix_ranked %>%
   ungroup() %>%
   dplyr::select(seed, molCompDiff, molCompCorr) %>%
   distinct(seed, .keep_all = T) -> d_molCompDiff
+
+# Multiplicative model:
+## We need to calculate the deviation between a multiplicative model of phenotypes
+## (exp^(sum(alpha, beta)) and the ODE phenotype
+## We can take the results from the NAR model, feed in the alpha and beta values
+## and use them as a multiplicative model -- same mutations, different phenotype
+## function. The difference between phenotypes is the NAR effect on the phenotype
+## or the phenotypic variance described by the NAR as opposed to the multiplicative
+## scaling
+
+# First get matched molecular component data for generations where we have fixations
+d_qg_matched_fix <- d_adapted %>% 
+  filter(interaction(gen, seed, modelindex) %in% 
+           interaction(d_fix_nar$gen, d_fix_nar$seed, d_fix_nar$modelindex)) %>%
+  dplyr::select(gen, seed, modelindex, aZ, bZ, KZ, KXZ, phenomean, w) %>% distinct()
+
+d_fix_mult <- inner_join(d_fix_nar, d_qg_matched_fix, by = c("gen", "seed", "modelindex"))
+
+# Calculate fitness effects for NAR populations
+d_fix_mult <- CalcMultEffects(d_fix_mult) %>% filter(gen >= 50000)
+
+# Get adaptive step order and attach step 0 (phenotype from before the first step in the walk)
+d_fix_ranked_mult <- RankFixations(d_fix_mult, F, d_fix %>% filter(modelindex == 2))
+
+# How many populations took n steps to reach the optimum?
+rbind(d_fix_ranked %>% mutate(model = "NAR"), 
+      d_fix_ranked_add %>% mutate(model = "Additive"),
+      d_fix_ranked_mult %>% mutate(model = "Multiplicative")) %>% 
+  group_by(model, rank) %>%
+  filter(rank != 0) %>%
+  summarise(n = n())
+
+# Since there aren't many populations with steps >3, we'll organise the groups
+# into 1, 2, >=3
+d_fix_ranked %>% 
+  mutate(rankFactor = ifelse(rank > 2, "\\geq 3", as.character(rank))) -> d_fix_ranked
+d_fix_ranked$rankFactor <- factor(d_fix_ranked$rankFactor, 
+                                  levels = c("0", "1", "2", "\\geq 3"))
+
