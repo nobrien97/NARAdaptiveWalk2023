@@ -306,14 +306,34 @@ CalcMultEffects <- function(dat, isFixed = T, dat_fixed = dat) {
   return(dat)
 }
 
-
+# Calculates the deviation between NAR phenotypes and Mult phenotypes to measure
+# how much the NAR is contributing to phenotype production
+CalcNARMultDeviation <- function(narEffects, multEffects) {
+  narEffects$AA_pheno <- narEffects$AA_pheno - multEffects$AA_pheno
+  narEffects$Aa_pheno <- narEffects$Aa_pheno - multEffects$Aa_pheno
+  narEffects$aa_pheno <- narEffects$aa_pheno - multEffects$aa_pheno
+  narEffects$avFit <- narEffects$avFit - multEffects$avFit
+  narEffects$avFit_AA <- narEffects$avFit_AA - multEffects$avFit_AA
+  narEffects$avFX <- narEffects$avFX - multEffects$avFX
+  narEffects$avFX_AA <- narEffects$avFX_AA - multEffects$avFX_AA
+  narEffects$wAA <- narEffects$wAA - multEffects$wAA
+  narEffects$wAa <- narEffects$wAa - multEffects$wAa
+  narEffects$waa <- narEffects$waa - multEffects$waa
+  narEffects$s <- narEffects$s - multEffects$s
+  
+  return(narEffects)
+}
 
 
 # Rank the fixations in order of adaptive step (first step, second, etc.)
-RankFixations <- function(dat, isNAR, dat_burnInFX = dat) {
-  index <- as.integer(isNAR) + 1
+RankFixations <- function(dat, model, dat_burnInFX = dat) {
+  # Set the model index: 1 if additive, 2 if NAR or multiplicative
+  index <- 2
+  if (model == "Additive") {
+   index <- 1 
+  }
   
-  if (isNAR) {
+  if (model == "NAR") {
     # Get fixed effects up to each rank
     dat <- dat %>%
       group_by(gen, seed) %>%
@@ -346,7 +366,7 @@ RankFixations <- function(dat, isNAR, dat_burnInFX = dat) {
                                                     dat_burnInFX$seed == cur_group()$seed,]$value))) %>%
       dplyr::select(gen, rank, seed, modelindex, mutID, value, 
                     aZ, bZ, phenomean, w, fixEffectSum_aZ, fixEffectSum_bZ, avFit)
-  } else {
+  } else if (model == "Additive") {
     d_fix_ranked <- dat %>%
       group_by(seed, modelindex) %>%
       arrange(gen, .by_group = T) %>%
@@ -363,6 +383,25 @@ RankFixations <- function(dat, isNAR, dat_burnInFX = dat) {
       mutate(rank = 0, value = NA, mutID = NA, avFit = NA,
              fixEffectSum = 2 * sum(dat_burnInFX[dat_burnInFX$gen <= cur_group()$gen &
                                                      dat_burnInFX$seed == cur_group()$seed,]$value)) %>%
+      dplyr::select(gen, rank, seed, modelindex, mutID, value,
+                    aZ, bZ, phenomean, w, fixEffectSum, avFit)
+  } else {
+    d_fix_ranked <- dat %>%
+      group_by(seed, modelindex) %>%
+      arrange(gen, .by_group = T) %>%
+      mutate(rank = row_number()) %>%
+      dplyr::select(c(gen, rank, seed, modelindex, mutID, mutType, originGen,
+                      fixEffectSum, value, value_AA, aZ, bZ, phenomean, w, 
+                      avFit, avFit_AA, AA_pheno, Aa_pheno, aa_pheno, 
+                      wAA, wAa, waa, s))
+    
+    step0_pheno <- d_adapted %>% 
+      filter(modelindex == index, gen == 49500, interaction(seed, modelindex) %in%
+               interaction(d_fix_ranked$seed, d_fix_ranked$modelindex)) %>%
+      group_by(gen, seed) %>%
+      mutate(rank = 0, value = NA, mutID = NA, avFit = NA,
+             fixEffectSum = exp(2 * sum(dat_burnInFX[dat_burnInFX$gen <= cur_group()$gen &
+                                                   dat_burnInFX$seed == cur_group()$seed,]$value))) %>%
       dplyr::select(gen, rank, seed, modelindex, mutID, value,
                     aZ, bZ, phenomean, w, fixEffectSum, avFit)
   }

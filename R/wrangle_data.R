@@ -117,8 +117,8 @@ d_fix_nar <- inner_join(d_fix_nar, d_qg_matched_fix, by = c("gen", "seed", "mode
 d_fix_nar <- CalcNARPhenotypeEffects(d_fix_nar) %>% filter(gen >= 50000)
 
 # Get adaptive step order and attach step 0 (phenotype from before the first step in the walk)
-d_fix_ranked <- RankFixations(d_fix_nar, T, d_fix %>% filter(modelindex == 2))
-d_fix_ranked_add <- RankFixations(d_fix_add, F, d_fix %>% filter(modelindex == 1))
+d_fix_ranked <- RankFixations(d_fix_nar, "NAR", d_fix %>% filter(modelindex == 2))
+d_fix_ranked_add <- RankFixations(d_fix_add, "Additive", d_fix %>% filter(modelindex == 1))
 
 # How many populations took n steps to reach the optimum?
 rbind(d_fix_ranked %>% mutate(model = "NAR"), 
@@ -309,18 +309,23 @@ d_fix_ranked %>%
 ## scaling
 
 # First get matched molecular component data for generations where we have fixations
+d_fix_mult <- d_fix_adapted %>% ungroup() %>% mutate(r = rownames(.)) %>% 
+  filter(modelindex == 2)
+
+# First get matched molecular component data for generations where we have fixations
 d_qg_matched_fix <- d_adapted %>% 
   filter(interaction(gen, seed, modelindex) %in% 
-           interaction(d_fix_nar$gen, d_fix_nar$seed, d_fix_nar$modelindex)) %>%
+           interaction(d_fix_mult$gen, d_fix_mult$seed, d_fix_mult$modelindex)) %>%
   dplyr::select(gen, seed, modelindex, aZ, bZ, KZ, KXZ, phenomean, w) %>% distinct()
 
-d_fix_mult <- inner_join(d_fix_nar, d_qg_matched_fix, by = c("gen", "seed", "modelindex"))
+d_fix_mult <- inner_join(d_fix_mult, d_qg_matched_fix, by = c("gen", "seed", "modelindex"))
+
 
 # Calculate fitness effects for NAR populations
 d_fix_mult <- CalcMultEffects(d_fix_mult) %>% filter(gen >= 50000)
 
 # Get adaptive step order and attach step 0 (phenotype from before the first step in the walk)
-d_fix_ranked_mult <- RankFixations(d_fix_mult, F, d_fix %>% filter(modelindex == 2))
+d_fix_ranked_mult <- RankFixations(d_fix_mult, "Multiplicative", d_fix %>% filter(modelindex == 2))
 
 # How many populations took n steps to reach the optimum?
 rbind(d_fix_ranked %>% mutate(model = "NAR"), 
@@ -329,6 +334,41 @@ rbind(d_fix_ranked %>% mutate(model = "NAR"),
   group_by(model, rank) %>%
   filter(rank != 0) %>%
   summarise(n = n())
+
+d_fix_ranked_mult %>% 
+  mutate(rankFactor = ifelse(rank > 2, "\\geq 3", as.character(rank))) -> d_fix_ranked_mult
+d_fix_ranked_mult$rankFactor <- factor(d_fix_ranked_mult$rankFactor, 
+                                  levels = c("0", "1", "2", "\\geq 3"))
+
+# Plot ranked mutations effects mult vs NAR
+d_nar_mutjoin <- d_fix_ranked %>%
+  mutate(model = "NAR") %>%
+  select(gen, seed, modelindex, model, mutID, rankFactor, s, 
+         AA_pheno, Aa_pheno, aa_pheno, wAA, wAa, waa, s)
+
+d_mult_mutjoin <- d_fix_ranked_mult %>%
+  mutate(model = "Multiplicative") %>%
+  select(gen, seed, modelindex, model, mutID, rankFactor, s, 
+         AA_pheno, Aa_pheno, aa_pheno, wAA, wAa, waa, s)
+
+
+
+d_mutjoin <- inner_join(d_nar_mutjoin, d_mult_mutjoin,
+                            by = c("gen", "seed", "modelindex", "mutID",
+                                   "rankFactor"),
+                            suffix = c(".nar", ".mult"))
+
+ggplot(d_mutjoin, aes(x = s.nar, y = s.mult)) +
+  geom_point(alpha = 0.4, size = 1.5) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  geom_segment(aes(xend = s.nar, yend = s.nar), color = "#F03000") +
+  labs(x = "NAR selection coefficient", y = "Multiplicative selection coefficient") +
+  coord_cartesian(xlim = c(-1, 1), ylim = c(-1, 1)) +
+  theme_bw() +
+  theme(text = element_text(size = 12), legend.position = "none")
+
+
+
 
 # Since there aren't many populations with steps >3, we'll organise the groups
 # into 1, 2, >=3

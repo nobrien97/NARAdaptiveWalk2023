@@ -97,7 +97,7 @@
   return(dat)
 }
 
-MutationScreenExp <- function(fixed, n, isAdditive = F) {
+MutationScreenExp <- function(fixed, n, model = "NAR") {
   # at each step in the walk, sample n mutations for each molecular component
   # and add them to the ancestor (the previous step) - then add that to a dataframe
   
@@ -105,23 +105,86 @@ MutationScreenExp <- function(fixed, n, isAdditive = F) {
   fx <- rnorm(n)
   
   # Run mutation sweep
-  if (isAdditive) {
+  if (model == "Additive") {
     return(.createEffectDataframeAdd(fixed, fx))
+  }
+  
+  if (model == "Multiplicative") {
+    return(.createEffectDataframeMult(fixed, fx))
   }
   
   .createEffectDataframe(fixed, fx)
 }
 
+
+.createEffectDataframeMult <- function(dat, sampled_effects) {
+  dat <- dat %>% filter(modelindex == 2)
+  
+  dat$rowID <- as.integer(rownames(dat))
+  
+  dat_out <- dat[rep(seq_len(nrow(dat)), each = length(sampled_effects)),]
+  rownames(dat_out) <- NULL # reset row names
+  
+  # calculate fitness with sampled effects added
+  Aa <- calcAddFitness(exp(log(dat_out$fixEffectSum) + sampled_effects), 2, 0.05)
+  AA <- calcAddFitness(exp(log(dat_out$fixEffectSum) + 2 * sampled_effects), 2, 0.05)
+  aa <- calcAddFitness(dat_out$fixEffectSum, 2, 0.05)
+  
+  dat <- dat_out
+  dat$avFit <- Aa - aa
+  dat$avFit_AA <- AA - aa
+  dat$AA_pheno <- exp(log(dat$fixEffectSum) + 2 * sampled_effects)
+  dat$Aa_pheno <- exp(log(dat$fixEffectSum) + sampled_effects)
+  dat$aa_pheno <- dat$fixEffectSum
+  dat$avFX <- dat$AA_pheno - dat$Aa_pheno
+  dat$avFX_AA <- dat$AA_pheno - dat$aa_pheno
+  dat$value_AA <- dat$value * 2
+  dat$wAA <- AA
+  dat$wAa <- Aa
+  dat$waa <- aa
+  dat$s <- AA - aa
+  return(dat)
+}
+
+MutationScreenExpCompare <- function(fixed, sampledEffects, model = "NAR") {
+  # at each step in the walk, sample n mutations for each molecular component
+  # and add them to the ancestor (the previous step) - then add that to a dataframe
+  # Run mutation sweep
+  .createEffectDataframe(fixed, sampledEffects)
+
+  # Run mutation sweep
+  if (model == "Additive") {
+    return(.createEffectDataframeAdd(fixed, sampledEffects))
+  }
+  
+  if (model == "Multiplicative") {
+    return(.createEffectDataframeMult(fixed, sampledEffects))
+  }
+  
+  .createEffectDataframe(fixed, sampledEffects)
+}
+
+
 # seed <- sample(1:.Machine$integer.max, 1)
 # sampled 18799215
 seed <- 18799215
 set.seed(seed)
-mutExp <- MutationScreenExp(d_fix_ranked, 1000)
+mutExp <- MutationScreenExp(d_fix_ranked, 1000, "NAR")
 
-mutExp_add <- MutationScreenExp(d_fix_ranked_add, 1000, T)
+mutExp_add <- MutationScreenExp(d_fix_ranked_add, 1000, "Additive")
 
-mutExp_combined <- rbind(mutExp, mutExp_add)
+mutExp_mult <- MutationScreenExp(d_fix_ranked_mult, 1000, "Multiplicative")
+
+mutExp_diff <- CalcNARMultDeviation(mutExp, mutExp_mult)
+
+mutExp_combined <- rbind(mutExp_diff, mutExp_add)
 mutExp_combined$model <- ifelse(mutExp_combined$modelindex == 1, "Additive", "NAR")
+
+# Plot phenotypes for given effects mult vs NAR
+sampledFX <- rnorm(1000)
+mutExp <- MutationScreenExpCompare(d_fix_ranked, sampledFX, "NAR")
+mutExp_mult <- MutationScreenExpCompare(d_fix_ranked_mult, sampledFX, "Multiplicative")
+
 
 # percentage of mutations beneficial, expected waiting time for beneficial mutation,
 # mean effect of mutations
@@ -146,6 +209,18 @@ mutExp_add %>%
 mutExp_add %>%
   group_by(rankFactor, seed) %>%
   summarise(percBeneficial = mean(as.integer(s > 0))) -> mutExp_add_percBeneficial
+
+
+mutExp_mult %>% 
+  group_by(rankFactor) %>%
+  summarise(percBeneficial = mean(as.integer(s > 0)),
+            CIperc = CI(as.integer(s > 0)),
+            meanEffect = mean(s),
+            CIEffect = CI(s)) -> mutExp_mult_sum
+
+mutExp_mult %>%
+  group_by(rankFactor, seed) %>%
+  summarise(percBeneficial = mean(as.integer(s > 0))) -> mutExp_mult_percBeneficial
 
 
 mutExp_add_sum$model <- "Additive"
