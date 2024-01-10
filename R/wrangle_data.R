@@ -367,13 +367,31 @@ ggplot(d_mutjoin, aes(x = s.nar, y = s.mult)) +
   theme_bw() +
   theme(text = element_text(size = 12), legend.position = "none")
 
+ggplot(d_mutjoin, aes(x = AA_pheno.nar, y = AA_pheno.mult)) +
+  geom_point(alpha = 0.4, size = 1.5) +
+  geom_segment(aes(xend = AA_pheno.nar, yend = AA_pheno.nar), color = "#F03000") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  labs(x = "NAR phenotype", y = "Multiplicative phenotype") +
+  coord_cartesian(xlim = c(0, 5), ylim = c(0, 10)) +
+  theme_bw() +
+  theme(text = element_text(size = 12), legend.position = "none")
 
+# distance between the two models
+## NAR - mult = effect of NAR on phenotype, which is offset by mult
+## assumes additivity between NAR and mult?
+d_mutjoin %>%
+  mutate(AA_pheno.diff = AA_pheno.nar - AA_pheno.mult,
+         aa_pheno.diff = aa_pheno.nar - aa_pheno.mult,
+         wAA.diff = calcAddFitness(AA_pheno.diff, 2, 0.05),
+         waa.diff = calcAddFitness(aa_pheno.diff, 2, 0.05),
+         s.diff = wAA.diff - waa.diff) -> d_mutjoin
 
+ggplot(d_mutjoin, aes(y = rankFactor, x = s.diff)) +
+  geom_density_ridges(stat = "binline", alpha = 0.4, scale = 1) +
+  scale_fill_paletteer_d("ggsci::nrc_npg") +
+  #scale_y_discrete(labels = parse(text=TeX(step_labs))) +
+  labs(y = "Adaptive step", x = "Fitness effect (s)") +
+  theme_bw() +
+  theme(text = element_text(size = 12), legend.position = "none")
 
-# Since there aren't many populations with steps >3, we'll organise the groups
-# into 1, 2, >=3
-d_fix_ranked %>% 
-  mutate(rankFactor = ifelse(rank > 2, "\\geq 3", as.character(rank))) -> d_fix_ranked
-d_fix_ranked$rankFactor <- factor(d_fix_ranked$rankFactor, 
-                                  levels = c("0", "1", "2", "\\geq 3"))
-
+step_labs <- paste0("$", levels(d_fix_ranked_combined$rankFactor), "$")

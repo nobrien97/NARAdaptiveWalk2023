@@ -8,6 +8,7 @@
   
   dat_out <- dat[rep(seq_len(nrow(dat)), each = length(sampled_effects)),]
   rownames(dat_out) <- NULL # reset row names
+  dat_out$sampledEffect <- rep(sampled_effects, length.out = nrow(dat_out))
   
   # calculate fitness with sampled effects added
   Aa <- calcAddFitness(dat_out$fixEffectSum + sampled_effects, 2, 0.05)
@@ -48,6 +49,10 @@
   d_popfx <- d_base[rep(seq_len(nrow(d_base)), each = length(sampled_effects)*2),]
   rownames(d_popfx) <- NULL # reset row names
   
+  dat_out$sampledEffect <- rep(sampled_effects, length.out = nrow(dat_out))
+  d_popfx$sampledEffect <- rep(sampled_effects, length.out = nrow(d_popfx))
+  
+  
   # We need to add to aZ/bZ separately
   d_dat_withFX_aZ <- dat_out
   d_dat_withFX_bZ <- dat_out
@@ -86,6 +91,9 @@
   Aa <- Aa %>% arrange(id)
   AA <- AA %>% arrange(id)
   
+  dat$AA_pheno <- AA$pheno
+  dat$Aa_pheno <- Aa$pheno
+  dat$aa_pheno <- d_popfx$pheno
   dat$avFX <- Aa$pheno - d_popfx$pheno
   dat$avFit <- Aa$fitness - d_popfx$fitness
   dat$avFX_AA <- AA$pheno - d_popfx$pheno
@@ -125,6 +133,8 @@ MutationScreenExp <- function(fixed, n, model = "NAR") {
   dat_out <- dat[rep(seq_len(nrow(dat)), each = length(sampled_effects)),]
   rownames(dat_out) <- NULL # reset row names
   
+  dat_out$sampledEffect <- rep(sampled_effects, length.out = nrow(dat_out))
+  
   # calculate fitness with sampled effects added
   Aa <- calcAddFitness(exp(log(dat_out$fixEffectSum) + sampled_effects), 2, 0.05)
   AA <- calcAddFitness(exp(log(dat_out$fixEffectSum) + 2 * sampled_effects), 2, 0.05)
@@ -149,8 +159,6 @@ MutationScreenExp <- function(fixed, n, model = "NAR") {
 MutationScreenExpCompare <- function(fixed, sampledEffects, model = "NAR") {
   # at each step in the walk, sample n mutations for each molecular component
   # and add them to the ancestor (the previous step) - then add that to a dataframe
-  # Run mutation sweep
-  .createEffectDataframe(fixed, sampledEffects)
 
   # Run mutation sweep
   if (model == "Additive") {
@@ -169,16 +177,16 @@ MutationScreenExpCompare <- function(fixed, sampledEffects, model = "NAR") {
 # sampled 18799215
 seed <- 18799215
 set.seed(seed)
-mutExp <- MutationScreenExp(d_fix_ranked, 1000, "NAR")
 
 mutExp_add <- MutationScreenExp(d_fix_ranked_add, 1000, "Additive")
 
-mutExp_mult <- MutationScreenExp(d_fix_ranked_mult, 1000, "Multiplicative")
+#mutExp <- MutationScreenExp(d_fix_ranked, 1000, "NAR")
+#mutExp_mult <- MutationScreenExp(d_fix_ranked_mult, 1000, "Multiplicative")
 
-mutExp_diff <- CalcNARMultDeviation(mutExp, mutExp_mult)
+#mutExp_diff <- CalcNARMultDeviation(mutExp, mutExp_mult)
 
-mutExp_combined <- rbind(mutExp_diff, mutExp_add)
-mutExp_combined$model <- ifelse(mutExp_combined$modelindex == 1, "Additive", "NAR")
+#mutExp_combined <- rbind(mutExp_diff, mutExp_add)
+#mutExp_combined$model <- ifelse(mutExp_combined$modelindex == 1, "Additive", "NAR")
 
 # Plot phenotypes for given effects mult vs NAR
 sampledFX <- rnorm(1000)
@@ -222,6 +230,8 @@ mutExp_mult %>%
   group_by(rankFactor, seed) %>%
   summarise(percBeneficial = mean(as.integer(s > 0))) -> mutExp_mult_percBeneficial
 
+mutExp_diff <- CalcNARMultDeviation(mutExp, mutExp_mult)
+
 
 mutExp_add_sum$model <- "Additive"
 mutExp_sum$model <- "NAR"
@@ -229,6 +239,55 @@ mutExp_sum$model <- "NAR"
 mutExp_add_percBeneficial$model <- "Additive"
 mutExp_percBeneficial$model <- "NAR"
 
-
 mutExp_sum_combined <- rbind(mutExp_add_sum, mutExp_sum)
 mutExp_perc_combined <- rbind(mutExp_add_percBeneficial, mutExp_percBeneficial)
+
+mutExp$model <- "NAR"
+mutExp_add$model <- "Additive"
+mutExp_mult$model <- "Multiplicative"
+mutExp_diff$model <- "NAR-multiplicative difference"
+
+mutExp_combined <- rbind(mutExp, mutExp_mult, mutExp_diff, mutExp_add)
+
+ggplot(mutExp_combined,
+       aes(y = rankFactor, x = s, fill = model)) +
+  facet_grid(.~model) +
+  geom_density_ridges(alpha = 0.4, scale = 1, stat = "binline", bins = 100) +
+  scale_fill_paletteer_d("ggsci::nrc_npg") +
+  scale_y_discrete(labels = parse(text=TeX(step_labs))) +
+  labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
+  theme_bw() +
+  theme(text = element_text(size = 12), legend.position = "bottom") -> plt_effectsizerandom_time
+plt_effectsizerandom_time
+
+ggsave("fig_mutationscreen_diff.png", plt_effectsizerandom_time, 
+       width = 10, height = 6, device = png, bg = "white")
+ggsave("fig_mutationscreen_diff.pdf", plt_effectsizerandom_time, 
+       width = 10, height = 6, bg = "white")
+
+# Plot regression: NAR pheno vs mult pheno
+mutExp_comp_NAR <-
+  mutExp %>%
+  rename(phenoNAR = AA_pheno) %>%
+  ungroup() %>%
+  select(rankFactor, sampledEffect, phenoNAR)
+
+mutExp_comp_mult <-
+  mutExp_mult %>%
+  rename(phenoMult = AA_pheno) %>%
+  ungroup() %>%
+  select(rankFactor, sampledEffect, phenoMult)
+
+mutExp_comp <- mutExp_comp_NAR
+mutExp_comp$phenoMult <- rep(mutExp_comp_mult$phenoMult, times = 2)
+
+ggplot(mutExp_comp,
+       aes(x = phenoMult, y = phenoNAR)) +
+  facet_grid(rankFactor~.) +
+  geom_scattermost(cbind(mutExp_comp$phenoMult, mutExp_comp$phenoNAR)) +
+  scale_colour_paletteer_d("ggsci::nrc_npg") +
+  scale_y_discrete(labels = parse(text=TeX(step_labs))) +
+  labs(x = "Phenotype (Multiplicative)", y = "Phenotype (NAR)") +
+  theme_bw() +
+  theme(text = element_text(size = 12), legend.position = "bottom")
+
