@@ -62,10 +62,11 @@ pivot_longer(d_evd,
 
 ggplot(d_evd %>% 
          mutate(model = factor(model, levels = c("Gumbel", "Weibull", "Frechet"))), 
-       aes(x = index, y = val, linetype = model)) +
-  geom_line() +
-  labs(y = "Density", x = "Extreme value", linetype = "Domain") +
+       aes(x = index, y = val, colour = model)) +
+  geom_line(linewidth = 1) +
+  labs(y = "Probability density", x = "Extreme value", colour = "Domain") +
   scale_linetype_discrete(labels = c("Gumbel", "Weibull", "Fréchet")) +
+  scale_colour_viridis_d() +
   theme_bw() + 
   theme(text = element_text(size = 16), legend.position = "bottom") -> plt_gpd
 plt_gpd
@@ -92,7 +93,6 @@ ggplot(d_adapted_walk,
 plt_phenomean_dist
 
 # B: phenotype at each step
-step_labs <- paste0("$", levels(d_fix_ranked_combined$rankFactor), "$")
 ggplot(d_fix_ranked_combined,
        aes(y = rankFactor, x = phenomean, fill = model)) +
   geom_density_ridges(alpha = 0.4) +
@@ -151,7 +151,7 @@ ggsave("fig_fixations.pdf", plt_DFEfixations, width = 9.22, height = 6.39, bg = 
 # space of possible mutations (mutation screen)
 # A: all possible mutations at each step
 ggplot(mutExp_combined, aes(y = rankFactor, x = s, fill = model)) +
-  geom_density_ridges(alpha = 0.4) +
+  geom_density_ridges(alpha = 0.4, scale = 1) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
   scale_y_discrete(labels = parse(text=TeX(step_labs))) +
   labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
@@ -209,7 +209,7 @@ ggplot(mutExp_sum_combined %>% mutate(waitingTime = 1/(20000 * (9.1528*10^-6) * 
   scale_x_discrete(labels = parse(text=TeX(step_labs))) +
   scale_colour_paletteer_d("ggsci::nrc_npg") +
   geom_line(aes(group=model), alpha = 0.4) +
-  labs(x = "Adaptive step", y = "Expected waiting time\nto beneficial mutation", colour = "Model") +
+  labs(x = "Adaptive step", y = "Expected waiting time to\nbeneficial mutation (generations)", colour = "Model") +
   theme_bw() + 
   theme(text = element_text(size = 12), legend.position = "none") -> plt_waitingtime
 plt_waitingtime

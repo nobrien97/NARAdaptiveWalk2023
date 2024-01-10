@@ -1,6 +1,7 @@
 # Load packages
 packageList <- c("dplyr", "ggplot2", "tibble", "tidyr", "cowplot", "ggridges", 
-"ggpmisc", "deSolve", "DescTools", "paletteer", "latex2exp", "readr", "RColorBrewer")
+"ggpmisc", "deSolve", "DescTools", "paletteer", "latex2exp", "readr", "RColorBrewer",
+"scattermore")
 
 lapply(packageList, require, character.only = T)
 
@@ -308,18 +309,28 @@ CalcMultEffects <- function(dat, isFixed = T, dat_fixed = dat) {
 
 # Calculates the deviation between NAR phenotypes and Mult phenotypes to measure
 # how much the NAR is contributing to phenotype production
+# Deviation in phenotypes then measure fitness again
 CalcNARMultDeviation <- function(narEffects, multEffects) {
+  # Calculate differences in phenotypes
+  # Difference between phenotypes: phenotypic effect due to NAR
+  # (NarPheno) - (NarPheno - MultPheno) = phenotypic effect due to Mult
+  # Ratio between them is the % of phenotype attributable by NAR vs mult
+  
   narEffects$AA_pheno <- narEffects$AA_pheno - multEffects$AA_pheno
   narEffects$Aa_pheno <- narEffects$Aa_pheno - multEffects$Aa_pheno
   narEffects$aa_pheno <- narEffects$aa_pheno - multEffects$aa_pheno
-  narEffects$avFit <- narEffects$avFit - multEffects$avFit
-  narEffects$avFit_AA <- narEffects$avFit_AA - multEffects$avFit_AA
-  narEffects$avFX <- narEffects$avFX - multEffects$avFX
-  narEffects$avFX_AA <- narEffects$avFX_AA - multEffects$avFX_AA
-  narEffects$wAA <- narEffects$wAA - multEffects$wAA
-  narEffects$wAa <- narEffects$wAa - multEffects$wAa
-  narEffects$waa <- narEffects$waa - multEffects$waa
-  narEffects$s <- narEffects$s - multEffects$s
+  
+  # Recalculate fitness for the difference phenotypes
+  narEffects$wAA <- calcAddFitness(narEffects$AA_pheno, 2, 0.05)
+  narEffects$wAa <- calcAddFitness(narEffects$Aa_pheno, 2, 0.05)
+  narEffects$waa <- calcAddFitness(narEffects$aa_pheno, 2, 0.05)
+  
+  # Calculate s
+  narEffects$avFX <- narEffects$AA_pheno - narEffects$Aa_pheno
+  narEffects$avFit <- narEffects$wAA - narEffects$wAa
+  narEffects$avFX_AA <- narEffects$AA_pheno - narEffects$aa_pheno
+  narEffects$avFit_AA <- narEffects$wAA - narEffects$waa
+  narEffects$s <- narEffects$wAA - multEffects$waa
   
   return(narEffects)
 }

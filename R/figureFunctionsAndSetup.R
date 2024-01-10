@@ -37,7 +37,7 @@ plotaZbZLandscape <- function(minVal, maxVal) {
       theme_bw() + 
       theme(legend.position = "bottom", text = element_text(size = 14)) +
       guides(
-        fill = guide_colourbar(barwidth = 10, title.vjust = 0.87)) # i love magic numbers
+        colour = guide_colourbar(barwidth = 10, title.vjust = 0.87)) # i love magic numbers
   )
 }
 
