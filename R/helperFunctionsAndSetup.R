@@ -316,21 +316,23 @@ CalcNARMultDeviation <- function(narEffects, multEffects) {
   # (NarPheno) - (NarPheno - MultPheno) = phenotypic effect due to Mult
   # Ratio between them is the % of phenotype attributable by NAR vs mult
   
-  narEffects$AA_pheno <- narEffects$AA_pheno - multEffects$AA_pheno
-  narEffects$Aa_pheno <- narEffects$Aa_pheno - multEffects$Aa_pheno
-  narEffects$aa_pheno <- narEffects$aa_pheno - multEffects$aa_pheno
+  narEffects$s <- narEffects$s - multEffects$s
   
-  # Recalculate fitness for the difference phenotypes
-  narEffects$wAA <- calcAddFitness(narEffects$AA_pheno, 2, 0.05)
-  narEffects$wAa <- calcAddFitness(narEffects$Aa_pheno, 2, 0.05)
-  narEffects$waa <- calcAddFitness(narEffects$aa_pheno, 2, 0.05)
-  
-  # Calculate s
-  narEffects$avFX <- narEffects$AA_pheno - narEffects$Aa_pheno
-  narEffects$avFit <- narEffects$wAA - narEffects$wAa
-  narEffects$avFX_AA <- narEffects$AA_pheno - narEffects$aa_pheno
-  narEffects$avFit_AA <- narEffects$wAA - narEffects$waa
-  narEffects$s <- narEffects$wAA - multEffects$waa
+  # narEffects$AA_pheno <- narEffects$AA_pheno - multEffects$AA_pheno
+  # narEffects$Aa_pheno <- narEffects$Aa_pheno - multEffects$Aa_pheno
+  # narEffects$aa_pheno <- narEffects$aa_pheno - multEffects$aa_pheno
+  # 
+  # # Recalculate fitness for the difference phenotypes
+  # narEffects$wAA <- calcAddFitness(narEffects$AA_pheno, 2, 0.05)
+  # narEffects$wAa <- calcAddFitness(narEffects$Aa_pheno, 2, 0.05)
+  # narEffects$waa <- calcAddFitness(narEffects$aa_pheno, 2, 0.05)
+  # 
+  # # Calculate s
+  # narEffects$avFX <- narEffects$AA_pheno - narEffects$Aa_pheno
+  # narEffects$avFit <- narEffects$wAA - narEffects$wAa
+  # narEffects$avFX_AA <- narEffects$AA_pheno - narEffects$aa_pheno
+  # narEffects$avFit_AA <- narEffects$wAA - narEffects$waa
+  # narEffects$s <- narEffects$wAA - multEffects$waa
   
   return(narEffects)
 }
