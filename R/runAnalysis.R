@@ -1,7 +1,7 @@
-# Run O'Brien et al. 2023 analysis: 
+# Run O'Brien et al. analysis: 
 #   format data, run mutation experiment, statistics, figures
 # Author: Nick O'Brien
-# Last updated: 2023/08/08
+# Last updated: 2024/01/31
 
 # Replace these paths with the path to where you saved the 
 # NarAdaptiveWalk2023 repo and where you saved the dataset
