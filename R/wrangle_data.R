@@ -308,90 +308,89 @@ d_fix_ranked %>%
 ## or the phenotypic variance described by the NAR as opposed to the multiplicative
 ## scaling
 
-# First get matched molecular component data for generations where we have fixations
-d_fix_mult <- d_fix_adapted %>% ungroup() %>% mutate(r = rownames(.)) %>% 
-  filter(modelindex == 2)
+# # First get matched molecular component data for generations where we have fixations
+# d_fix_mult <- d_fix_adapted %>% ungroup() %>% mutate(r = rownames(.)) %>% 
+#   filter(modelindex == 2)
+# 
+# # First get matched molecular component data for generations where we have fixations
+# d_qg_matched_fix <- d_adapted %>% 
+#   filter(interaction(gen, seed, modelindex) %in% 
+#            interaction(d_fix_mult$gen, d_fix_mult$seed, d_fix_mult$modelindex)) %>%
+#   dplyr::select(gen, seed, modelindex, aZ, bZ, KZ, KXZ, phenomean, w) %>% distinct()
+# 
+# d_fix_mult <- inner_join(d_fix_mult, d_qg_matched_fix, by = c("gen", "seed", "modelindex"))
+# 
+# 
+# # Calculate fitness effects for NAR populations
+# d_fix_mult <- CalcMultEffects(d_fix_mult) %>% filter(gen >= 50000)
+# 
+# # Get adaptive step order and attach step 0 (phenotype from before the first step in the walk)
+# d_fix_ranked_mult <- RankFixations(d_fix_mult, "Multiplicative", d_fix %>% filter(modelindex == 2))
+# 
+# # How many populations took n steps to reach the optimum?
+# rbind(d_fix_ranked %>% mutate(model = "NAR"), 
+#       d_fix_ranked_add %>% mutate(model = "Additive"),
+#       d_fix_ranked_mult %>% mutate(model = "Multiplicative")) %>% 
+#   group_by(model, rank) %>%
+#   filter(rank != 0) %>%
+#   summarise(n = n())
+# 
+# d_fix_ranked_mult %>% 
+#   mutate(rankFactor = ifelse(rank > 2, "\\geq 3", as.character(rank))) -> d_fix_ranked_mult
+# d_fix_ranked_mult$rankFactor <- factor(d_fix_ranked_mult$rankFactor, 
+#                                   levels = c("0", "1", "2", "\\geq 3"))
 
-# First get matched molecular component data for generations where we have fixations
-d_qg_matched_fix <- d_adapted %>% 
-  filter(interaction(gen, seed, modelindex) %in% 
-           interaction(d_fix_mult$gen, d_fix_mult$seed, d_fix_mult$modelindex)) %>%
-  dplyr::select(gen, seed, modelindex, aZ, bZ, KZ, KXZ, phenomean, w) %>% distinct()
-
-d_fix_mult <- inner_join(d_fix_mult, d_qg_matched_fix, by = c("gen", "seed", "modelindex"))
-
-
-# Calculate fitness effects for NAR populations
-d_fix_mult <- CalcMultEffects(d_fix_mult) %>% filter(gen >= 50000)
-
-# Get adaptive step order and attach step 0 (phenotype from before the first step in the walk)
-d_fix_ranked_mult <- RankFixations(d_fix_mult, "Multiplicative", d_fix %>% filter(modelindex == 2))
-
-# How many populations took n steps to reach the optimum?
-rbind(d_fix_ranked %>% mutate(model = "NAR"), 
-      d_fix_ranked_add %>% mutate(model = "Additive"),
-      d_fix_ranked_mult %>% mutate(model = "Multiplicative")) %>% 
-  group_by(model, rank) %>%
-  filter(rank != 0) %>%
-  summarise(n = n())
-
-d_fix_ranked_mult %>% 
-  mutate(rankFactor = ifelse(rank > 2, "\\geq 3", as.character(rank))) -> d_fix_ranked_mult
-d_fix_ranked_mult$rankFactor <- factor(d_fix_ranked_mult$rankFactor, 
-                                  levels = c("0", "1", "2", "\\geq 3"))
-
-# Plot ranked mutations effects mult vs NAR
-d_nar_mutjoin <- d_fix_ranked %>%
-  mutate(model = "NAR") %>%
-  select(gen, seed, modelindex, model, mutID, rankFactor, s, 
-         AA_pheno, Aa_pheno, aa_pheno, wAA, wAa, waa, s)
-
-d_mult_mutjoin <- d_fix_ranked_mult %>%
-  mutate(model = "Multiplicative") %>%
-  select(gen, seed, modelindex, model, mutID, rankFactor, s, 
-         AA_pheno, Aa_pheno, aa_pheno, wAA, wAa, waa, s)
-
-
-
-d_mutjoin <- inner_join(d_nar_mutjoin, d_mult_mutjoin,
-                            by = c("gen", "seed", "modelindex", "mutID",
-                                   "rankFactor"),
-                            suffix = c(".nar", ".mult"))
-
-ggplot(d_mutjoin, aes(x = s.nar, y = s.mult)) +
-  geom_point(alpha = 0.4, size = 1.5) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
-  geom_segment(aes(xend = s.nar, yend = s.nar), color = "#F03000") +
-  labs(x = "NAR selection coefficient", y = "Multiplicative selection coefficient") +
-  coord_cartesian(xlim = c(-1, 1), ylim = c(-1, 1)) +
-  theme_bw() +
-  theme(text = element_text(size = 12), legend.position = "none")
-
-ggplot(d_mutjoin, aes(x = AA_pheno.nar, y = AA_pheno.mult)) +
-  geom_point(alpha = 0.4, size = 1.5) +
-  geom_segment(aes(xend = AA_pheno.nar, yend = AA_pheno.nar), color = "#F03000") +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
-  labs(x = "NAR phenotype", y = "Multiplicative phenotype") +
-  coord_cartesian(xlim = c(0, 5), ylim = c(0, 10)) +
-  theme_bw() +
-  theme(text = element_text(size = 12), legend.position = "none")
-
-# distance between the two models
-## NAR - mult = effect of NAR on phenotype, which is offset by mult
-## assumes additivity between NAR and mult?
-d_mutjoin %>%
-  mutate(AA_pheno.diff = AA_pheno.nar - AA_pheno.mult,
-         aa_pheno.diff = aa_pheno.nar - aa_pheno.mult,
-         wAA.diff = calcAddFitness(AA_pheno.diff, 2, 0.05),
-         waa.diff = calcAddFitness(aa_pheno.diff, 2, 0.05),
-         s.diff = wAA.diff - waa.diff) -> d_mutjoin
-
-ggplot(d_mutjoin, aes(y = rankFactor, x = s.diff)) +
-  geom_density_ridges(stat = "binline", alpha = 0.4, scale = 1) +
-  scale_fill_paletteer_d("ggsci::nrc_npg") +
-  #scale_y_discrete(labels = parse(text=TeX(step_labs))) +
-  labs(y = "Adaptive step", x = "Fitness effect (s)") +
-  theme_bw() +
-  theme(text = element_text(size = 12), legend.position = "none")
-
-step_labs <- paste0("$", levels(d_fix_ranked_combined$rankFactor), "$")
+# # Plot ranked mutations effects mult vs NAR
+# d_nar_mutjoin <- d_fix_ranked %>%
+#   mutate(model = "NAR") %>%
+#   select(gen, seed, modelindex, model, mutID, rankFactor, s, 
+#          AA_pheno, Aa_pheno, aa_pheno, wAA, wAa, waa, s)
+# 
+# d_mult_mutjoin <- d_fix_ranked_mult %>%
+#   mutate(model = "Multiplicative") %>%
+#   select(gen, seed, modelindex, model, mutID, rankFactor, s, 
+#          AA_pheno, Aa_pheno, aa_pheno, wAA, wAa, waa, s)
+# 
+# 
+# 
+# d_mutjoin <- inner_join(d_nar_mutjoin, d_mult_mutjoin,
+#                             by = c("gen", "seed", "modelindex", "mutID",
+#                                    "rankFactor"),
+#                             suffix = c(".nar", ".mult"))
+# 
+# ggplot(d_mutjoin, aes(x = s.nar, y = s.mult)) +
+#   geom_point(alpha = 0.4, size = 1.5) +
+#   geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+#   geom_segment(aes(xend = s.nar, yend = s.nar), color = "#F03000") +
+#   labs(x = "NAR selection coefficient", y = "Multiplicative selection coefficient") +
+#   coord_cartesian(xlim = c(-1, 1), ylim = c(-1, 1)) +
+#   theme_bw() +
+#   theme(text = element_text(size = 12), legend.position = "none")
+# 
+# ggplot(d_mutjoin, aes(x = AA_pheno.nar, y = AA_pheno.mult)) +
+#   geom_point(alpha = 0.4, size = 1.5) +
+#   geom_segment(aes(xend = AA_pheno.nar, yend = AA_pheno.nar), color = "#F03000") +
+#   geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+#   labs(x = "NAR phenotype", y = "Multiplicative phenotype") +
+#   coord_cartesian(xlim = c(0, 5), ylim = c(0, 10)) +
+#   theme_bw() +
+#   theme(text = element_text(size = 12), legend.position = "none")
+# 
+# # distance between the two models
+# ## NAR - mult = effect of NAR on phenotype, which is offset by mult
+# ## assumes additivity between NAR and mult?
+# d_mutjoin %>%
+#   mutate(AA_pheno.diff = AA_pheno.nar - AA_pheno.mult,
+#          aa_pheno.diff = aa_pheno.nar - aa_pheno.mult,
+#          wAA.diff = calcAddFitness(AA_pheno.diff, 2, 0.05),
+#          waa.diff = calcAddFitness(aa_pheno.diff, 2, 0.05),
+#          s.diff = wAA.diff - waa.diff) -> d_mutjoin
+# 
+# ggplot(d_mutjoin, aes(y = rankFactor, x = s.diff)) +
+#   geom_density_ridges(stat = "binline", alpha = 0.4, scale = 1) +
+#   scale_fill_paletteer_d("ggsci::nrc_npg") +
+#   #scale_y_discrete(labels = parse(text=TeX(step_labs))) +
+#   labs(y = "Adaptive step", x = "Fitness effect (s)") +
+#   theme_bw() +
+#   theme(text = element_text(size = 12), legend.position = "none")
+# 

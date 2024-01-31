@@ -51,10 +51,10 @@ ggsave("NARgraph.pdf", fig1, width = 8, height = 4, bg = "white")
 
 
 # Fig. Extreme value dist - gumbel vs frechet vs weibull
-d_evd <- data.frame(index = seq(0, 4, length = 1000),
-                    Gumbel = devd(seq(0, 4, length = 1000), shape = 0, type = "GP"),
-                    Weibull = devd(seq(0, 4, length = 1000), shape = -1, type = "GP"),
-                    Frechet = devd(seq(0, 4, length = 1000), shape = 1, type = "GP"))
+d_evd <- data.frame(index = seq(0.01, 4, length = 1000),
+                    Gumbel = devd(seq(0.01, 4, length = 1000), shape = 0, type = "GP"),
+                    Weibull = devd(seq(0.01, 4, length = 1000), shape = -0.75, type = "GP"),
+                    Frechet = devd(seq(0.01, 4, length = 1000), shape = 1, type = "GP"))
 
 pivot_longer(d_evd, 
              cols = c("Gumbel", "Weibull", "Frechet"), values_to = "val",
@@ -62,13 +62,14 @@ pivot_longer(d_evd,
 
 ggplot(d_evd %>% 
          mutate(model = factor(model, levels = c("Gumbel", "Weibull", "Frechet"))), 
-       aes(x = index, y = val, colour = model)) +
+       aes(x = index, y = val, linetype = model)) +
   geom_line(linewidth = 1) +
-  labs(y = "Probability density", x = "Extreme value", colour = "Domain") +
-  scale_linetype_discrete(labels = c("Gumbel", "Weibull", "Fréchet")) +
+  labs(y = "Probability density", x = "Extreme value", linetype = "Domain") +
+  scale_linetype_discrete(labels = c("Gumbel (k = 0)", "Weibull (k < 0)", "Fréchet (k > 0)")) +
   scale_colour_viridis_d() +
   theme_bw() + 
-  theme(text = element_text(size = 16), legend.position = "bottom") -> plt_gpd
+  theme(text = element_text(size = 20), legend.position = "bottom",
+        legend.key.size = unit(2, "line")) -> plt_gpd
 plt_gpd
 
 ggsave("fig_gpd.png", plt_gpd, device = png, bg = "white")
@@ -83,7 +84,7 @@ d_adapted_walk$gen_group <- breaks[findInterval(d_adapted_walk$gen - 50000, brea
 
 ggplot(d_adapted_walk,
        aes(y = as.factor(gen_group), x = phenomean, fill = modelindex)) +
-  geom_density_ridges(alpha = 0.4) +
+  geom_density_ridges(alpha = 0.4, stat = "binline", bins = 50, scale = 0.95) +
   geom_vline(xintercept = 2, linetype = "dashed") +
   scale_fill_paletteer_d("ggsci::nrc_npg", labels = c("Additive", "Network")) +
   labs(y = "Generations post-optimum shift", x = "Phenotype mean", 
@@ -95,7 +96,7 @@ plt_phenomean_dist
 # B: phenotype at each step
 ggplot(d_fix_ranked_combined,
        aes(y = rankFactor, x = phenomean, fill = model)) +
-  geom_density_ridges(alpha = 0.4) +
+  geom_density_ridges(alpha = 0.4, stat = "binline", bins = 50, scale = 0.95) +
   geom_vline(xintercept = 2, linetype = "dashed") +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
   scale_y_discrete(labels = parse(text=TeX(step_labs))) +
@@ -120,8 +121,10 @@ ggsave("fig_traitevolution.pdf", plt_traitevo, width = 9.22, height = 6.39, bg =
 # distribution of fixations and step size over time
 d_fix_ranked_combined$model <- if_else(d_fix_ranked_combined$modelindex == 1, "Additive", "Network")
 
-ggplot(d_fix_ranked_combined %>% filter(rank > 0), aes(x = s, fill = model)) +
-  geom_density(alpha = 0.4) + 
+ggplot(d_fix_ranked_combined %>% filter(rank > 0), 
+       aes(x = s, y = 0, fill = model)) +
+  #geom_bar(alpha = 0.4) +
+  geom_density_ridges(alpha = 0.4, stat = "binline", bins = 50) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
   labs(y = "Density", x = "Fitness effect (s)", fill = "Model") +
   theme_bw() +
@@ -130,7 +133,7 @@ plt_distfixed
 
 ggplot(d_fix_ranked_combined %>% filter(rank > 0), 
        aes(x = s, y = rankFactor, fill = model)) +
-  geom_density_ridges(alpha = 0.4) + 
+  geom_density_ridges(alpha = 0.4, stat = "binline", bins = 50, scale = 1.5) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
   scale_y_discrete(labels = parse(text=TeX(step_labs[2:4]))) +
   labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
@@ -151,7 +154,7 @@ ggsave("fig_fixations.pdf", plt_DFEfixations, width = 9.22, height = 6.39, bg = 
 # space of possible mutations (mutation screen)
 # A: all possible mutations at each step
 ggplot(mutExp_combined, aes(y = rankFactor, x = s, fill = model)) +
-  geom_density_ridges(alpha = 0.4, scale = 1) +
+  geom_density_ridges(alpha = 0.4, stat = "binline", bins = 50, scale = 0.95) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
   scale_y_discrete(labels = parse(text=TeX(step_labs))) +
   labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
@@ -161,7 +164,7 @@ plt_effectsizerandom_time
 
 ggplot(mutExp_combined %>% filter(model == "Additive"), 
        aes(y = rankFactor, x = s, fill = model)) +
-  geom_density_ridges(alpha = 0.4) +
+  geom_density_ridges(alpha = 0.4, stat = "binline", bins = 50, scale = 0.95) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
   scale_y_discrete(labels = parse(text=TeX(step_labs))) +
   labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
@@ -172,7 +175,7 @@ ggsave("fig_mutationscreen_add.png", device = png, width = 6, height = 6.5)
 
 ggplot(mutExp_combined %>% filter(model == "NAR"), 
        aes(y = rankFactor, x = s)) +
-  geom_density_ridges(alpha = 0.4, fill = "#4DBBD5FF") +
+  geom_density_ridges(alpha = 0.4, stat = "binline", bins = 50, fill = "#4DBBD5FF", scale = 0.95) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
   scale_y_discrete(labels = parse(text=TeX(step_labs))) +
   labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
@@ -232,7 +235,7 @@ ggsave("fig_mutationscreen.pdf", plt_mutationscreen, width = 10, height = 6, bg 
 # Supp fig: mutation screen by mutation type
 ggplot(mutExp_combined %>% filter(model == "NAR", rank > 0), 
        aes(y = rankFactor, x = s, fill = mutType)) +
-  geom_density_ridges(alpha = 0.4) +
+  geom_density_ridges(alpha = 0.4, stat = "binline", bins = 50, scale = 0.95) +
   scale_fill_manual(values = paletteer_d("ggsci::nrc_npg", 5)[c(3,5)], labels = mutType_names)+
   scale_y_discrete(labels = parse(text=TeX(step_labs[2:4]))) +
   labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
@@ -264,7 +267,7 @@ plt_aZbZratio
 ggplot(d_molCompDiff,
        aes(x = molCompDiff)) +
   geom_density() +
-  labs(x = TeX("Molecular component contribution ($\\phi_{\\alpha_Z \\beta_Z}$)"), y = "Density") +
+  labs(x = TeX("Molecular component contribution ($\\phi$)"), y = "Density") +
   theme_bw() + 
   theme(text = element_text(size = 14)) -> plt_molCompDiff
 plt_molCompDiff
@@ -334,8 +337,13 @@ ggplot(d_del_diffs %>%
          mutate(model = ifelse(model == "Additive", "Additive", "Network")), 
        aes(x = diff_s, fill = model)) +
   geom_density(alpha = 0.4) +
+  geom_jitter(aes(colour = model, y = 0)) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
   theme_bw() +
+  guides(fill = guide_legend(
+    override.aes = list(fill = paletteer_d("ggsci::nrc_npg", 2),
+                        colour = NA)), colour = "none"
+  ) +
   labs(x = TeX("Difference in fitness effect after optimum shift $(s_1 - s_0)$"),
        y = "Density", fill = "Model") +
   theme(text = element_text(size = 16), legend.position = "bottom") -> plt_delfixed_s
@@ -344,10 +352,15 @@ ggplot(d_del_diffs %>%
          mutate(model = ifelse(model == "Additive", "Additive", "Network")), 
        aes(x = Freq, fill = model)) +
   geom_density(alpha = 0.4) +
+  geom_jitter(aes(colour = model, y = 0)) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
   theme_bw() +
   labs(x = "Frequency at end of burn-in (p)",
        y = "Density", fill = "Model") +
+  guides(fill = guide_legend(
+    override.aes = list(fill = paletteer_d("ggsci::nrc_npg", 2),
+                        colour = NA)), colour = "none"
+  ) +
   theme(text = element_text(size = 16), legend.position = "none") -> plt_delfixed_freq
 
 leg <- get_legend(plt_delfixed_s)
@@ -390,13 +403,19 @@ ggplot(d_fix_ranked_combined %>%
          filter(rank > 0, phenomean < 1.9 | phenomean > 2.1) %>%
          mutate(gen = gen - 50000),
        aes(y = rankFactor, x = gen, fill = model)) +
-  geom_density_ridges(alpha = 0.4) +
+  geom_density_ridges(aes(point_color = model), 
+                      jittered_points = T, point_alpha = 1, 
+                      alpha = 0.4, scale = 0.95) +
   scale_y_discrete(labels = parse(text=TeX(step_labs[2:4]))) +
   scale_x_continuous(labels = scales::comma) +
   scale_fill_paletteer_d("ggsci::nrc_npg", labels = c("Additive", "Network")) +
   labs(x = "Fixation generation (post-optimum shift)", y = "Adaptive step", 
        fill = "Model") +
   theme_bw() +
+  guides(fill = guide_legend(
+    override.aes = list(fill = paletteer_d("ggsci::nrc_npg", 2),
+      color = NA, point_color = NA)), point_color = "none"
+  ) +
   theme(text = element_text(size = 16), legend.position = "bottom") -> plt_adaptivestepgen_dist
 plt_adaptivestepgen_dist
 ggsave("sfig_fixgendist.png", plt_adaptivestepgen_dist, device = png)
@@ -405,7 +424,7 @@ ggsave("sfig_fixgendist.pdf", plt_adaptivestepgen_dist)
 # Supp fig: dist of beneficial fixations at each step - zoom in of Fig. 2B
 ggplot(d_fix_ranked_combined %>% filter(rank > 0), 
        aes(x = s, y = rankFactor, fill = model)) +
-  geom_density_ridges(alpha = 0.4) + 
+  geom_density_ridges(alpha = 0.4, stat = "binline", bins = 100, scale = 0.95) +
   coord_cartesian(xlim = c(0, 0.1)) +
   scale_y_discrete(labels = parse(text=TeX(step_labs[2:4]))) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +

@@ -335,7 +335,8 @@ percBen_em <- emmeans(percBen_lm, pairwise ~ model | rankFactor)
 # emmip(percBen_lm, ~ model | rankFactor, CIs = T)
 # percBen_em$emmeans
 # percBen_em$contrasts
-print(summary(pairs(regrid(percBen_em)), by = NULL))
+print(summary(pairs(regrid(percBen_em)), by = NULL) %>% 
+        mutate(CI = SE * qnorm(0.975)))
 
 # Bootstrap expected waiting times 
 waitingTimeDiff <- function(data, n) {

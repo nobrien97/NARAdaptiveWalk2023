@@ -1,7 +1,6 @@
 # Load packages
 packageList <- c("dplyr", "ggplot2", "tibble", "tidyr", "cowplot", "ggridges", 
-"ggpmisc", "deSolve", "DescTools", "paletteer", "latex2exp", "readr", "RColorBrewer",
-"scattermore")
+"ggpmisc", "deSolve", "DescTools", "paletteer", "latex2exp", "readr", "RColorBrewer")
 
 lapply(packageList, require, character.only = T)
 
@@ -242,100 +241,100 @@ CalcNARPhenotypeEffects <- function(dat, isFixed = T, dat_fixed = dat) {
   return(dat)
 }
 
-## Calculate fitness effects in multiplicative populations
-CalcMultEffects <- function(dat, isFixed = T, dat_fixed = dat) {
-  # If we are calculating fitness for segregating sites, need to evaluate fitness
-  # vs the fixed effect background at the timepoint (i.e. all fixations at timepoint gen)
-  # Fixation effect is multiplied by 2 because diploid
-  # Sum effects across all loci in NAR models
-  dat_fixed <- dat_fixed %>% filter(modelindex == 2)
-  dat <- dat %>% 
-    group_by(gen, seed) %>%
-    mutate(fixEffectSum = 2 * sum(dat_fixed[dat_fixed$gen <= cur_group()$gen &
-                                              dat_fixed$seed == cur_group()$seed,]$value))
-  
-  # Transform to exp scale: multiplicative
-  dat$fixEffectSum <- exp(dat$fixEffectSum)
-  
-  if (isFixed) {
-    # For fixed comparisons:
-    # AA = 1+s; Aa = 1+hs; aa = 1
-    # AA = fixEffectSum
-    # Aa = fixEffectSum - value
-    # aa = fixEffectSum - 2 * value
-    Aa <- calcAddFitness(exp(log(dat$fixEffectSum) - dat$value), 2, 0.05)
-    AA <- calcAddFitness(dat$fixEffectSum, 2, 0.05)
-    aa <- calcAddFitness(exp(log(dat$fixEffectSum) - 2 * dat$value), 2, 0.05)
-    dat$AA_pheno <- dat$fixEffectSum
-    dat$Aa_pheno <- exp(log(dat$fixEffectSum) - dat$value)
-    dat$aa_pheno <- exp(log(dat$fixEffectSum) - 2 * dat$value)
-    dat$avFit <- Aa - aa
-    dat$avFit_AA <- AA - aa
-    dat$avFX <- dat$AA_pheno - dat$Aa_pheno
-    dat$avFX_AA <- dat$AA_pheno - dat$aa_pheno
-    dat$value_AA <- dat$value * 2
-    dat$wAA <- AA
-    dat$wAa <- Aa
-    dat$waa <- aa
-    dat$s <- AA - aa
-    return(dat)
-  }
-  
-  # For segregating comparisons:
-  # AA = 1+s; Aa = 1+hs; aa = 1
-  # AA = fixEffectSum + 2 * value
-  # Aa = fixEffectSum + value
-  # aa = fixEffectSum
-  # Get effect
-  Aa <- calcAddFitness(exp(log(dat$fixEffectSum) + dat$value), 2, 0.05)
-  AA <- calcAddFitness(exp(log(dat$fixEffectSum) + 2 * dat$value), 2, 0.05)
-  aa <- calcAddFitness(dat$fixEffectSum, 2, 0.05)
-  
-  dat$AA_pheno <- dat$fixEffectSum + 2 * dat$value
-  dat$Aa_pheno <- dat$fixEffectSum + dat$value
-  dat$aa_pheno <- dat$fixEffectSum
-  dat$avFit <- Aa - aa
-  dat$avFit_AA <- AA - aa
-  dat$avFX <- dat$AA_pheno - dat$Aa_pheno
-  dat$avFX_AA <- dat$AA_pheno - dat$aa_pheno
-  dat$value_AA <- dat$value * 2
-  dat$wAA <- AA
-  dat$wAa <- Aa
-  dat$waa <- aa
-  dat$s <- AA - aa
-  
-  return(dat)
-}
+# ## Calculate fitness effects in multiplicative populations
+# CalcMultEffects <- function(dat, isFixed = T, dat_fixed = dat) {
+#   # If we are calculating fitness for segregating sites, need to evaluate fitness
+#   # vs the fixed effect background at the timepoint (i.e. all fixations at timepoint gen)
+#   # Fixation effect is multiplied by 2 because diploid
+#   # Sum effects across all loci in NAR models
+#   dat_fixed <- dat_fixed %>% filter(modelindex == 2)
+#   dat <- dat %>% 
+#     group_by(gen, seed) %>%
+#     mutate(fixEffectSum = 2 * sum(dat_fixed[dat_fixed$gen <= cur_group()$gen &
+#                                               dat_fixed$seed == cur_group()$seed,]$value))
+#   
+#   # Transform to exp scale: multiplicative
+#   dat$fixEffectSum <- exp(dat$fixEffectSum)
+#   
+#   if (isFixed) {
+#     # For fixed comparisons:
+#     # AA = 1+s; Aa = 1+hs; aa = 1
+#     # AA = fixEffectSum
+#     # Aa = fixEffectSum - value
+#     # aa = fixEffectSum - 2 * value
+#     Aa <- calcAddFitness(exp(log(dat$fixEffectSum) - dat$value), 2, 0.05)
+#     AA <- calcAddFitness(dat$fixEffectSum, 2, 0.05)
+#     aa <- calcAddFitness(exp(log(dat$fixEffectSum) - 2 * dat$value), 2, 0.05)
+#     dat$AA_pheno <- dat$fixEffectSum
+#     dat$Aa_pheno <- exp(log(dat$fixEffectSum) - dat$value)
+#     dat$aa_pheno <- exp(log(dat$fixEffectSum) - 2 * dat$value)
+#     dat$avFit <- Aa - aa
+#     dat$avFit_AA <- AA - aa
+#     dat$avFX <- dat$AA_pheno - dat$Aa_pheno
+#     dat$avFX_AA <- dat$AA_pheno - dat$aa_pheno
+#     dat$value_AA <- dat$value * 2
+#     dat$wAA <- AA
+#     dat$wAa <- Aa
+#     dat$waa <- aa
+#     dat$s <- AA - aa
+#     return(dat)
+#   }
+#   
+#   # For segregating comparisons:
+#   # AA = 1+s; Aa = 1+hs; aa = 1
+#   # AA = fixEffectSum + 2 * value
+#   # Aa = fixEffectSum + value
+#   # aa = fixEffectSum
+#   # Get effect
+#   Aa <- calcAddFitness(exp(log(dat$fixEffectSum) + dat$value), 2, 0.05)
+#   AA <- calcAddFitness(exp(log(dat$fixEffectSum) + 2 * dat$value), 2, 0.05)
+#   aa <- calcAddFitness(dat$fixEffectSum, 2, 0.05)
+#   
+#   dat$AA_pheno <- dat$fixEffectSum + 2 * dat$value
+#   dat$Aa_pheno <- dat$fixEffectSum + dat$value
+#   dat$aa_pheno <- dat$fixEffectSum
+#   dat$avFit <- Aa - aa
+#   dat$avFit_AA <- AA - aa
+#   dat$avFX <- dat$AA_pheno - dat$Aa_pheno
+#   dat$avFX_AA <- dat$AA_pheno - dat$aa_pheno
+#   dat$value_AA <- dat$value * 2
+#   dat$wAA <- AA
+#   dat$wAa <- Aa
+#   dat$waa <- aa
+#   dat$s <- AA - aa
+#   
+#   return(dat)
+# }
 
 # Calculates the deviation between NAR phenotypes and Mult phenotypes to measure
 # how much the NAR is contributing to phenotype production
 # Deviation in phenotypes then measure fitness again
-CalcNARMultDeviation <- function(narEffects, multEffects) {
-  # Calculate differences in phenotypes
-  # Difference between phenotypes: phenotypic effect due to NAR
-  # (NarPheno) - (NarPheno - MultPheno) = phenotypic effect due to Mult
-  # Ratio between them is the % of phenotype attributable by NAR vs mult
-  
-  narEffects$s <- narEffects$s - multEffects$s
-  
-  # narEffects$AA_pheno <- narEffects$AA_pheno - multEffects$AA_pheno
-  # narEffects$Aa_pheno <- narEffects$Aa_pheno - multEffects$Aa_pheno
-  # narEffects$aa_pheno <- narEffects$aa_pheno - multEffects$aa_pheno
-  # 
-  # # Recalculate fitness for the difference phenotypes
-  # narEffects$wAA <- calcAddFitness(narEffects$AA_pheno, 2, 0.05)
-  # narEffects$wAa <- calcAddFitness(narEffects$Aa_pheno, 2, 0.05)
-  # narEffects$waa <- calcAddFitness(narEffects$aa_pheno, 2, 0.05)
-  # 
-  # # Calculate s
-  # narEffects$avFX <- narEffects$AA_pheno - narEffects$Aa_pheno
-  # narEffects$avFit <- narEffects$wAA - narEffects$wAa
-  # narEffects$avFX_AA <- narEffects$AA_pheno - narEffects$aa_pheno
-  # narEffects$avFit_AA <- narEffects$wAA - narEffects$waa
-  # narEffects$s <- narEffects$wAA - multEffects$waa
-  
-  return(narEffects)
-}
+# CalcNARMultDeviation <- function(narEffects, multEffects) {
+#   # Calculate differences in phenotypes
+#   # Difference between phenotypes: phenotypic effect due to NAR
+#   # (NarPheno) - (NarPheno - MultPheno) = phenotypic effect due to Mult
+#   # Ratio between them is the % of phenotype attributable by NAR vs mult
+#   
+#   narEffects$s <- narEffects$s - multEffects$s
+#   
+#   # narEffects$AA_pheno <- narEffects$AA_pheno - multEffects$AA_pheno
+#   # narEffects$Aa_pheno <- narEffects$Aa_pheno - multEffects$Aa_pheno
+#   # narEffects$aa_pheno <- narEffects$aa_pheno - multEffects$aa_pheno
+#   # 
+#   # # Recalculate fitness for the difference phenotypes
+#   # narEffects$wAA <- calcAddFitness(narEffects$AA_pheno, 2, 0.05)
+#   # narEffects$wAa <- calcAddFitness(narEffects$Aa_pheno, 2, 0.05)
+#   # narEffects$waa <- calcAddFitness(narEffects$aa_pheno, 2, 0.05)
+#   # 
+#   # # Calculate s
+#   # narEffects$avFX <- narEffects$AA_pheno - narEffects$Aa_pheno
+#   # narEffects$avFit <- narEffects$wAA - narEffects$wAa
+#   # narEffects$avFX_AA <- narEffects$AA_pheno - narEffects$aa_pheno
+#   # narEffects$avFit_AA <- narEffects$wAA - narEffects$waa
+#   # narEffects$s <- narEffects$wAA - multEffects$waa
+#   
+#   return(narEffects)
+# }
 
 
 # Rank the fixations in order of adaptive step (first step, second, etc.)

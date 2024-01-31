@@ -2,6 +2,8 @@ require(igraph)
 require(ggraph)
 require(extRemes)
 
+step_labs <- paste0("$", levels(d_fix_ranked_combined$rankFactor), "$")
+
 # Plot fitness landscape
 plotaZbZLandscape <- function(minVal, maxVal) {
   GRID_RES <- 400
@@ -264,13 +266,13 @@ plotRatioLandscape <- function(minRatio, maxRatio) {
                1)
   
   suppressWarnings(
-    ggplot(d_landscape %>% mutate(aZbZ = aZ/bZ), 
-           aes(x = aZbZ, y = pheno, colour = fitness)) +
+    ggplot(d_landscape %>% mutate(bZaZ = bZ/aZ), 
+           aes(x = bZaZ, y = pheno, colour = fitness)) +
       geom_point() +
       scale_colour_gradientn(colors = c(cc[1], cc), 
                              limits = c(ifelse(minFit < 0.8, 0.8, minFit), 1),
                              values = wValues, na.value = cc[1]) +
-      labs(x = TeX("$\\alpha_Z / \\beta_Z$"), y = "Phenotype", 
+      labs(x = TeX("$\\beta_Z / \\alpha_Z$"), y = "Phenotype", 
            colour = "Fitness (w)") +
       theme_bw() + 
       theme(legend.position = "bottom", text = element_text(size = 14)) +
