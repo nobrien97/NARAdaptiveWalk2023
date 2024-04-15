@@ -39,7 +39,7 @@ Stats will be printed to the R console -- look at the source in stats.R for more
 
 
 ## Running SLiM simulations
-You can find the SLiM scripts used in the paper in the `./SLiM/` folder, along with a list of random number seeds used. Note that to run the scripts, you will have to change a few variables -- the `wd` constant on line 12, and `moveDir` (directory to move all data to after the simulation is done) on line 80 (`indTrack_add.slim`) and line 84 (`indTrack_net.slim`).
+You can find the SLiM scripts used in the paper in the `./SLiM/` folder, along with a list of random number seeds used. We used a custom version of SLiM available at [](https://github.com/nobrien97/SLiM/releases/tag/AdaptiveWalks2023). Note that to run the scripts, you will have to change a few variables -- the `wd` constant on line 12, and `moveDir` (directory to move all data to after the simulation is done) on line 80 (`indTrack_add.slim`) and line 84 (`indTrack_net.slim`).
 
 To run the simulation, it is easiest to use the command line. An example PBS-style script is below:
 ```
