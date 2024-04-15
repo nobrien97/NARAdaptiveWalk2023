@@ -217,7 +217,7 @@ bootBeisel_nar_nonpool$rankFactor <- factor(bootBeisel_nar_nonpool$rankFactor,
 print("bootstrapped GPD fit mean parameters")
 print(bootBeisel_nar_nonpool %>%
         drop_na() %>%
-        filter(n_muts >= 10) %>% # estimates unreliable when n_muts < 10
+        filter(n_muts >= 20) %>% # estimates unreliable when n_muts < 20 (Beisel Fig 3)
         group_by(rankFactor) %>%
         summarise(n = n(), 
                   meanNMuts = mean(n_muts),
@@ -230,7 +230,7 @@ print(bootBeisel_nar_nonpool %>%
 
 print(bootBeisel_add_nonpool %>%
         drop_na() %>%
-        filter(n_muts >= 10) %>% # estimates unreliable when n_muts < 10
+        filter(n_muts >= 20) %>% # estimates unreliable when n_muts < 20 (Beisel Fig 3)
         group_by(rankFactor) %>%
         summarise(n = n(),
                   meanNMuts = mean(n_muts),
@@ -264,12 +264,12 @@ ggplot(bootBeisel_nar,
 #bootBeisel_nar_nonpool <- read.csv("bootBeisel_nar_nonpool.csv")
 
 # percent in each bin
-print(bootBeisel_add_nonpool %>% filter(n_muts >= 10) %>% group_by(rankFactor) %>%
+print(bootBeisel_add_nonpool %>% filter(n_muts >= 20) %>% group_by(rankFactor) %>%
   summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
             percWeibull = sum(kappa <= -1)/n(),
             percFrechet = sum(kappa >= 1)/n()))
 
-print(bootBeisel_nar_nonpool %>% filter(n_muts >= 10) %>% group_by(rankFactor) %>%
+print(bootBeisel_nar_nonpool %>% filter(n_muts >= 20) %>% group_by(rankFactor) %>%
   summarise(percGumbel = sum(kappa < 1 & kappa > -1)/n(),
             percWeibull = sum(kappa <= -1)/n(),
             percFrechet = sum(kappa >= 1)/n()))
@@ -285,13 +285,13 @@ print(bootBeisel_nar %>%
             percFrechet = sum(kappa >= 1)/n()))
 
 # Combine p-values with Tippett's method
-print(bootBeisel_add_nonpool %>% filter(n_muts >= 10) %>%
+print(bootBeisel_add_nonpool %>% filter(n_muts >= 20) %>%
   mutate(p.value = ifelse(p.value == 0, p.value + 1e-3, p.value)) %>% # Since we did 1000 iterations per model, the minimum p-value is actually 0.001
   group_by(rankFactor) %>%
   summarise(fisherP = fisherMethod(p.value),
             fisherX = fisherMethod(p.value, T)))
   
-print(bootBeisel_nar_nonpool %>% filter(n_muts >= 10) %>%
+print(bootBeisel_nar_nonpool %>% filter(n_muts >= 20) %>%
   mutate(p.value = ifelse(p.value == 0, p.value + 1e-3, p.value)) %>% # Since we did 1000 iterations per model, the minimum p-value is actually 0.001
   group_by(rankFactor) %>%
   summarise(fisherP = fisherMethod(p.value),
@@ -322,7 +322,7 @@ d_bootBeisel <- rbind(bootBeisel_add, bootBeisel_nar,
 
 # Remove poor quality fits
 d_bootBeisel <- d_bootBeisel %>% 
-  filter(n_muts >= 10)
+  filter(n_muts >= 20)
 
 # Plot change in mean kappa over time
 ggplot(d_bootBeisel %>% filter(pooled == "Non-pooled", 
