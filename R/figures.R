@@ -78,9 +78,9 @@ ggsave("fig_gpd.pdf", plt_gpd, bg = "white")
 # phenomean and adaptive walk
 # A - phenomean ridgeline plot
 d_adapted_walk <- d_adapted %>% filter(gen >= 49000)
-breaks <- seq(min(d_adapted_walk$gen - 50000), max(d_adapted_walk$gen - 50000), by = 1000)
+breaks <- sort(c(seq(-1000, 9000, by = 2000), 0))
 
-d_adapted_walk$gen_group <- breaks[findInterval(d_adapted_walk$gen - 50000, breaks, rightmost.closed = TRUE)]
+d_adapted_walk$gen_group <- scales::comma(breaks[findInterval(d_adapted_walk$gen - 50000, breaks, rightmost.closed = TRUE)])
 
 ggplot(d_adapted_walk,
        aes(y = as.factor(gen_group), x = phenomean, fill = modelindex)) +
@@ -90,6 +90,7 @@ ggplot(d_adapted_walk,
   labs(y = "Generations post-optimum shift", x = "Phenotype mean", 
        fill = "Model") +
   theme_bw() +
+  scale_y_discrete(expand = expansion(mult = c(0.1, 0.2))) +
   theme(text = element_text(size = 16), legend.position = "bottom") -> plt_phenomean_dist
 plt_phenomean_dist
 
@@ -99,7 +100,8 @@ ggplot(d_fix_ranked_combined,
   geom_density_ridges(alpha = 0.4, stat = "binline", bins = 50, scale = 0.95) +
   geom_vline(xintercept = 2, linetype = "dashed") +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
-  scale_y_discrete(labels = parse(text=TeX(step_labs))) +
+  scale_y_discrete(labels = parse(text=TeX(step_labs)), 
+                   expand = expansion(mult = c(0.1, 0.35))) +
   labs(y = "Adaptive step", x = "Phenotype mean", 
        fill = "Model") +
   theme_bw() +
@@ -156,7 +158,8 @@ ggsave("fig_fixations.pdf", plt_DFEfixations, width = 9.22, height = 6.39, bg = 
 ggplot(mutExp_combined, aes(y = rankFactor, x = s, fill = model)) +
   geom_density_ridges(alpha = 0.4, stat = "binline", bins = 50, scale = 0.95) +
   scale_fill_paletteer_d("ggsci::nrc_npg") +
-  scale_y_discrete(labels = parse(text=TeX(step_labs))) +
+  scale_y_discrete(labels = parse(text=TeX(step_labs)),
+                   expand = expansion(mult = c(0.1, 0.35))) +
   labs(y = "Adaptive step", x = "Fitness effect (s)", fill = "Model") +
   theme_bw() +
   theme(text = element_text(size = 12), legend.position = "none") -> plt_effectsizerandom_time
